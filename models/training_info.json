@@ -1,0 +1,32 @@
+{
+  "timestamp": "2026-01-31T19:32:28.638925",
+  "data_path": "C:\\Users\\admin\\Predict_Gia_Bac\\dataset\\dataset_silver.csv",
+  "model_path": "C:\\Users\\admin\\Predict_Gia_Bac\\models\\silver_lstm_model.h5",
+  "sequence_length": 60,
+  "prediction_days": 7,
+  "epochs_trained": 54,
+  "features_used": 1,
+  "feature_names": [
+    "price"
+  ],
+  "use_bidirectional": true,
+  "use_all_features": false,
+  "metrics": {
+    "rmse": 10.921688628108726,
+    "mae": 4.71943381740587,
+    "r2": 0.4475435784580696,
+    "mape": 7.947903302487719,
+    "mse": 119.28328248935946
+  },
+  "data_info": {
+    "total_records": 4117,
+    "date_range": {
+      "start": "2010-04-12",
+      "end": "2026-01-30"
+    },
+    "price_range": {
+      "min": 11.98,
+      "max": 116.6095
+    }
+  }
+}

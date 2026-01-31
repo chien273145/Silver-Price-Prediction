@@ -1,0 +1,29 @@
+{
+  "timestamp": "2026-01-31T19:35:52.519582",
+  "model_type": "Ridge Regression (Multi-output)",
+  "n_features": 110,
+  "prediction_days": 7,
+  "metrics": {
+    "rmse": 2.86476112169632,
+    "mae": 1.56201951686275,
+    "r2": 0.9617802358905285,
+    "mape": 3.3690491640188425
+  },
+  "alphas": [
+    10.0,
+    10.0,
+    10.0,
+    100.0,
+    100.0,
+    100.0,
+    100.0
+  ],
+  "data_info": {
+    "records": 4107,
+    "date_range": {
+      "start": "2010-04-26",
+      "end": "2026-01-30"
+    },
+    "latest_price": 84.704
+  }
+}

@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dự Đoán Giá Bạc | Silver Price Prediction</title>
+    <meta name="description" content="Hệ thống AI dự đoán giá bạc 7 ngày sử dụng LSTM Deep Learning">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <span class="logo-icon">🥈</span>
+                    <div class="logo-text">
+                        <h1>Silver Price AI</h1>
+                        <span class="subtitle">Dự đoán giá bạc thông minh</span>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <div class="currency-toggle">
+                        <button class="toggle-btn active" data-currency="VND">VND</button>
+                        <button class="toggle-btn" data-currency="USD">USD</button>
+                    </div>
+                    <button class="refresh-btn" id="refreshBtn" title="Làm mới dữ liệu">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main">
+            <!-- Price Cards -->
+            <section class="price-cards">
+                <div class="card price-card current-price">
+                    <div class="card-header">
+                        <span class="card-label">Giá hiện tại</span>
+                        <span class="live-badge">
+                            <span class="live-dot"></span>
+                            LIVE
+                        </span>
+                    </div>
+                    <div class="card-value" id="currentPrice">--</div>
+                    <div class="card-unit" id="priceUnit">VND/lượng</div>
+                    <div class="card-change" id="priceChange">
+                        <span class="change-value">--</span>
+                        <span class="change-percent">--</span>
+                    </div>
+                </div>
+
+                <div class="card price-card prediction-card">
+                    <div class="card-header">
+                        <span class="card-label">Dự đoán 7 ngày</span>
+                        <span class="trend-badge" id="trendBadge">--</span>
+                    </div>
+                    <div class="card-value" id="predictedPrice">--</div>
+                    <div class="card-unit">Giá dự đoán ngày thứ 7</div>
+                    <div class="card-change" id="predictionChange">
+                        <span class="change-value">--</span>
+                        <span class="change-percent">--</span>
+                    </div>
+                </div>
+
+                <div class="card price-card stats-card">
+                    <div class="card-header">
+                        <span class="card-label">Thống kê dự đoán</span>
+                    </div>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <span class="stat-label">Thấp nhất</span>
+                            <span class="stat-value" id="minPrice">--</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Cao nhất</span>
+                            <span class="stat-value" id="maxPrice">--</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Trung bình</span>
+                            <span class="stat-value" id="avgPrice">--</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Tỷ giá USD</span>
+                            <span class="stat-value" id="exchangeRate">--</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Charts Section -->
+            <section class="charts-section">
+                <div class="card chart-card">
+                    <div class="card-header">
+                        <span class="card-label">Biểu đồ giá lịch sử & Dự đoán</span>
+                        <div class="chart-controls">
+                            <button class="period-btn" data-days="30">30 ngày</button>
+                            <button class="period-btn active" data-days="90">90 ngày</button>
+                            <button class="period-btn" data-days="180">180 ngày</button>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="priceChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Prediction Table -->
+            <section class="prediction-section">
+                <div class="card table-card">
+                    <div class="card-header">
+                        <span class="card-label">Chi tiết dự đoán 7 ngày</span>
+                        <span class="last-update" id="lastUpdate">Cập nhật: --</span>
+                    </div>
+                    <div class="table-container">
+                        <table class="prediction-table">
+                            <thead>
+                                <tr>
+                                    <th>Ngày</th>
+                                    <th>Giá dự đoán</th>
+                                    <th>Thay đổi</th>
+                                    <th>% Thay đổi</th>
+                                    <th>Xu hướng</th>
+                                </tr>
+                            </thead>
+                            <tbody id="predictionTable">
+                                <tr>
+                                    <td colspan="5" class="loading-cell">Đang tải dữ liệu...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Model Info Section -->
+            <section class="model-section">
+                <div class="card model-card">
+                    <div class="card-header">
+                        <span class="card-label">Thông tin mô hình AI</span>
+                        <span class="model-badge">LSTM Deep Learning</span>
+                    </div>
+                    <div class="model-metrics">
+                        <div class="metric-item">
+                            <div class="metric-icon">📊</div>
+                            <div class="metric-info">
+                                <span class="metric-label">RMSE</span>
+                                <span class="metric-value" id="metricRMSE">--</span>
+                            </div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-icon">📈</div>
+                            <div class="metric-info">
+                                <span class="metric-label">MAE</span>
+                                <span class="metric-value" id="metricMAE">--</span>
+                            </div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-icon">🎯</div>
+                            <div class="metric-info">
+                                <span class="metric-label">R² Score</span>
+                                <span class="metric-value" id="metricR2">--</span>
+                            </div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-icon">📉</div>
+                            <div class="metric-info">
+                                <span class="metric-label">MAPE</span>
+                                <span class="metric-value" id="metricMAPE">--</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="footer-content">
+                <p>🥈 Silver Price Prediction System | Powered by LSTM Deep Learning & TensorFlow</p>
+                <p class="disclaimer">⚠️ Dự đoán chỉ mang tính chất tham khảo, không phải lời khuyên đầu tư</p>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loader"></div>
+        <span>Đang tải...</span>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Scripts -->
+    <script src="/static/app.js"></script>
+</body>
+</html>
