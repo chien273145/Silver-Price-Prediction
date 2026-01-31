@@ -682,6 +682,10 @@ if os.path.exists(frontend_dir):
     async def get_robots():
         return FileResponse(os.path.join(frontend_dir, "robots.txt"))
 
+    @app.get("/ads.txt")
+    async def get_ads_txt():
+        return FileResponse(os.path.join(frontend_dir, "ads.txt"))
+
 
 if __name__ == "__main__":
     import uvicorn
