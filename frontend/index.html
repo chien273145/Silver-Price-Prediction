@@ -4,8 +4,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dự Đoán Giá Bạc | Silver Price Prediction</title>
-    <meta name="description" content="Hệ thống AI dự đoán giá bạc 7 ngày sử dụng LSTM Deep Learning">
+    <title>Dự Đoán Giá Bạc Hôm Nay | Silver Price Prediction AI</title>
+    <meta name="description"
+        content="Dự đoán giá bạc 7 ngày tới bằng AI Machine Learning. Xem giá bạc thế giới, phân tích xu hướng, tin tức thị trường kim loại quý cập nhật hàng ngày.">
+    <meta name="keywords" content="giá bạc, dự đoán giá bạc, silver price, giá bạc hôm nay, đầu tư bạc, kim loại quý">
+    <meta name="author" content="Silver Price AI">
+    <meta name="robots" content="index, follow">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://silver-price-prediction.onrender.com/">
+    <meta property="og:title" content="Dự Đoán Giá Bạc - AI Prediction">
+    <meta property="og:description" content="Hệ thống AI dự đoán giá bạc 7 ngày với độ chính xác cao">
+    <meta property="og:image" content="https://silver-price-prediction.onrender.com/static/og-image.png">
+
+    <!-- Google Search Console Verification - THAY YOUR_VERIFICATION_CODE -->
+    <meta name="google-site-verification" content="YOUR_VERIFICATION_CODE">
+
+    <!-- Google Analytics - THAY G-XXXXXXXXXX bằng Measurement ID của bạn -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { dataLayer.push(arguments); }
+        gtag('js', new Date());
+        gtag('config', 'G-XXXXXXXXXX');
+    </script>
 
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -18,6 +41,9 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"></script>
+
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://silver-price-prediction.onrender.com/">
 
     <!-- Styles -->
     <link rel="stylesheet" href="/static/styles.css">
@@ -238,13 +264,34 @@
                     </div>
                 </div>
             </section>
+
+            <!-- Email Subscription Section -->
+            <section class="subscribe-section">
+                <div class="card subscribe-card">
+                    <div class="subscribe-content">
+                        <div class="subscribe-text">
+                            <h3>📧 Nhận Dự Đoán Hàng Ngày</h3>
+                            <p>Đăng ký để nhận thông báo dự đoán giá bạc và tin tức thị trường mỗi ngày.</p>
+                        </div>
+                        <form class="subscribe-form" id="subscribeForm">
+                            <input type="email" id="emailInput" placeholder="Email của bạn" required>
+                            <button type="submit" class="subscribe-btn">Đăng ký</button>
+                        </form>
+                    </div>
+                    <p class="subscribe-note">🔒 Chúng tôi tôn trọng quyền riêng tư của bạn. Không spam.</p>
+                </div>
+            </section>
         </main>
 
         <!-- Footer -->
         <footer class="footer">
             <div class="footer-content">
-                <p>🥈 Silver Price Prediction System | Powered by Ridge Regression & Scikit-learn</p>
+                <p>🥈 Silver Price Prediction System | Powered by AI & Machine Learning</p>
                 <p class="disclaimer">⚠️ Dự đoán chỉ mang tính chất tham khảo, không phải lời khuyên đầu tư</p>
+                <p class="footer-links">
+                    <a href="#" onclick="showPrivacyPolicy()">Chính sách bảo mật</a> |
+                    <a href="#" onclick="showContact()">Liên hệ</a>
+                </p>
             </div>
         </footer>
     </div>

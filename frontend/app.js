@@ -651,3 +651,58 @@ function displayAccuracy(data) {
 if (elements.refreshNewsBtn) {
     elements.refreshNewsBtn.addEventListener('click', loadNews);
 }
+
+// ===== EMAIL SUBSCRIPTION =====
+const subscribeForm = document.getElementById('subscribeForm');
+if (subscribeForm) {
+    subscribeForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const emailInput = document.getElementById('emailInput');
+        const email = emailInput.value.trim();
+
+        if (!email) return;
+
+        try {
+            // For now, just save to localStorage and show success
+            // Later can be replaced with actual API call
+            const subscribers = JSON.parse(localStorage.getItem('subscribers') || '[]');
+
+            if (subscribers.includes(email)) {
+                showToast('Email đã được đăng ký trước đó!', 'warning');
+                return;
+            }
+
+            subscribers.push(email);
+            localStorage.setItem('subscribers', JSON.stringify(subscribers));
+
+            emailInput.value = '';
+            showToast('🎉 Đăng ký thành công! Cảm ơn bạn.', 'success');
+
+            // Track in Google Analytics if available
+            if (typeof gtag !== 'undefined') {
+                gtag('event', 'subscribe', {
+                    'event_category': 'engagement',
+                    'event_label': 'email_subscription'
+                });
+            }
+        } catch (error) {
+            console.error('Subscription error:', error);
+            showToast('Có lỗi xảy ra. Vui lòng thử lại.', 'error');
+        }
+    });
+}
+
+// ===== HELPER FUNCTIONS =====
+function showPrivacyPolicy() {
+    alert('Chính sách bảo mật:\n\n' +
+        '• Chúng tôi chỉ sử dụng email để gửi thông báo dự đoán giá.\n' +
+        '• Không chia sẻ thông tin với bên thứ ba.\n' +
+        '• Bạn có thể hủy đăng ký bất cứ lúc nào.\n' +
+        '• Dữ liệu được lưu trữ an toàn.');
+}
+
+function showContact() {
+    alert('Liên hệ:\n\n' +
+        '📧 Email: support@silverprice.ai\n' +
+        '🌐 Website: silver-price-prediction.onrender.com');
+}

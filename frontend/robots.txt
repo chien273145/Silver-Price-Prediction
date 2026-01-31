@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://silver-price-prediction.onrender.com/sitemap.xml
