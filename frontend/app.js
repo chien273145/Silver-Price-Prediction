@@ -39,7 +39,12 @@ const elements = {
     metricRMSE: document.getElementById('metricRMSE'),
     metricMAE: document.getElementById('metricMAE'),
     metricR2: document.getElementById('metricR2'),
-    metricMAPE: document.getElementById('metricMAPE')
+    metricMAPE: document.getElementById('metricMAPE'),
+    // New elements
+    newsList: document.getElementById('newsList'),
+    refreshNewsBtn: document.getElementById('refreshNewsBtn'),
+    accuracyBadge: document.getElementById('accuracyBadge'),
+    accuracyContent: document.getElementById('accuracyContent')
 };
 
 // Utility Functions
@@ -387,9 +392,50 @@ function updateChart() {
                         }
                     }
                 }
+            },
+            // Zoom plugin configuration
+            plugins: {
+                zoom: {
+                    zoom: {
+                        wheel: {
+                            enabled: true,
+                            modifierKey: 'ctrl'
+                        },
+                        pinch: {
+                            enabled: true
+                        },
+                        mode: 'xy',
+                        onZoomComplete: function ({ chart }) {
+                            chart.update('none');
+                        }
+                    },
+                    pan: {
+                        enabled: true,
+                        mode: 'xy',
+                    },
+                    limits: {
+                        y: { min: 0 }
+                    }
+                }
             }
         }
     });
+
+    // Add zoom hint below chart
+    const chartContainer = document.getElementById('priceChart').parentElement;
+    if (!document.querySelector('.chart-zoom-hint')) {
+        const hint = document.createElement('div');
+        hint.className = 'chart-zoom-hint';
+        hint.innerHTML = '💡 Ctrl + Scroll để zoom | Kéo để di chuyển | <button onclick="resetChartZoom()" style="color: var(--info); background: none; border: none; cursor: pointer; text-decoration: underline;">Reset</button>';
+        chartContainer.appendChild(hint);
+    }
+}
+
+// Reset chart zoom
+function resetChartZoom() {
+    if (state.chart) {
+        state.chart.resetZoom();
+    }
 }
 
 // Load all data
@@ -478,6 +524,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     setupEventListeners();
     loadData();
+    loadNews();
+    loadAccuracy();
 
     // Keyboard shortcut to refresh (R)
     document.addEventListener('keydown', (e) => {
@@ -493,3 +541,113 @@ window.addEventListener('beforeunload', () => {
         clearInterval(state.refreshInterval);
     }
 });
+
+// ===== NEWS FUNCTIONS =====
+async function loadNews() {
+    if (!elements.newsList) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/api/news`);
+        const data = await response.json();
+
+        if (data.success && data.news && data.news.length > 0) {
+            displayNews(data.news);
+        } else {
+            elements.newsList.innerHTML = '<div class="news-error">Không thể tải tin tức</div>';
+        }
+    } catch (error) {
+        console.error('Error loading news:', error);
+        elements.newsList.innerHTML = '<div class="news-error">Lỗi kết nối</div>';
+    }
+}
+
+function displayNews(newsItems) {
+    if (!elements.newsList) return;
+
+    const html = newsItems.map(item => `
+        <div class="news-item">
+            <span class="news-icon">${item.icon || '📰'}</span>
+            <div class="news-content">
+                <div class="news-title">
+                    <a href="${item.link}" target="_blank" rel="noopener">${item.title}</a>
+                </div>
+                <div class="news-meta">
+                    <span class="news-source">${item.source}</span>
+                    <span class="news-date">${formatNewsDate(item.date)}</span>
+                </div>
+            </div>
+        </div>
+    `).join('');
+
+    elements.newsList.innerHTML = html;
+}
+
+function formatNewsDate(dateStr) {
+    if (!dateStr) return '';
+    try {
+        const date = new Date(dateStr);
+        const now = new Date();
+        const diffHours = Math.floor((now - date) / (1000 * 60 * 60));
+
+        if (diffHours < 1) return 'Vừa xong';
+        if (diffHours < 24) return `${diffHours} giờ trước`;
+        if (diffHours < 48) return 'Hôm qua';
+        return date.toLocaleDateString('vi-VN');
+    } catch {
+        return dateStr;
+    }
+}
+
+// ===== ACCURACY FUNCTIONS =====
+async function loadAccuracy() {
+    if (!elements.accuracyContent) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/api/accuracy`);
+        const data = await response.json();
+
+        if (data.success) {
+            displayAccuracy(data);
+        } else {
+            elements.accuracyContent.innerHTML = '<p class="accuracy-loading">Chưa có dữ liệu</p>';
+        }
+    } catch (error) {
+        console.error('Error loading accuracy:', error);
+        elements.accuracyContent.innerHTML = '<p class="accuracy-loading">Lỗi kết nối</p>';
+    }
+}
+
+function displayAccuracy(data) {
+    if (!elements.accuracyContent || !elements.accuracyBadge) return;
+
+    const acc = data.accuracy;
+
+    // Update badge
+    elements.accuracyBadge.textContent = `${acc.overall}%`;
+    elements.accuracyBadge.className = acc.overall >= 90 ? 'accuracy-badge' : 'accuracy-badge low';
+
+    // Update content
+    elements.accuracyContent.innerHTML = `
+        <div class="accuracy-item">
+            <div class="label">Độ chính xác tổng</div>
+            <div class="value ${acc.overall >= 90 ? 'positive' : ''}">${acc.overall}%</div>
+        </div>
+        <div class="accuracy-item">
+            <div class="label">Chính xác xu hướng</div>
+            <div class="value ${acc.direction >= 60 ? 'positive' : ''}">${acc.direction}%</div>
+        </div>
+        <div class="accuracy-item">
+            <div class="label">MAPE (Sai số %)</div>
+            <div class="value">${acc.mape}%</div>
+        </div>
+        <div class="accuracy-item">
+            <div class="label">Sai số trung bình</div>
+            <div class="value">$${acc.avg_error_usd}</div>
+        </div>
+    `;
+}
+
+// Add event listener for news refresh
+if (elements.refreshNewsBtn) {
+    elements.refreshNewsBtn.addEventListener('click', loadNews);
+}

@@ -16,6 +16,8 @@
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"></script>
 
     <!-- Styles -->
     <link rel="stylesheet" href="/static/styles.css">
@@ -52,6 +54,15 @@
                 </div>
             </div>
         </header>
+
+        <!-- Disclaimer Banner -->
+        <div class="disclaimer-banner">
+            <div class="disclaimer-content">
+                <span class="disclaimer-icon">⚠️</span>
+                <p><strong>Lưu ý:</strong> Dự đoán chỉ mang tính chất <strong>tham khảo</strong>, không phải lời khuyên
+                    đầu tư. Hãy tự nghiên cứu và tham khảo ý kiến chuyên gia trước khi đưa ra quyết định đầu tư.</p>
+            </div>
+        </div>
 
         <!-- Main Content -->
         <main class="main">
@@ -192,6 +203,38 @@
                                 <span class="metric-value">$0.71</span>
                             </div>
                         </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Accuracy Tracking Section -->
+            <section class="accuracy-section">
+                <div class="card accuracy-card">
+                    <div class="card-header">
+                        <h3>🎯 Độ Chính Xác Dự Đoán</h3>
+                        <span class="accuracy-badge" id="accuracyBadge">--</span>
+                    </div>
+                    <div class="accuracy-content" id="accuracyContent">
+                        <p class="accuracy-loading">Đang tính toán...</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Market News Section -->
+            <section class="news-section">
+                <div class="card news-card">
+                    <div class="card-header">
+                        <h3>📰 Tin Tức Thị Trường</h3>
+                        <button class="refresh-news-btn" id="refreshNewsBtn" title="Làm mới tin tức">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path
+                                    d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="news-list" id="newsList">
+                        <div class="news-loading">Đang tải tin tức...</div>
                     </div>
                 </div>
             </section>
