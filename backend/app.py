@@ -19,12 +19,12 @@ from pydantic import BaseModel
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.unified_predictor import UnifiedPredictor
+from src.enhanced_predictor import EnhancedPredictor
 from backend.realtime_data import RealTimeDataFetcher
 
 
 # Global instances
-predictor: Optional[UnifiedPredictor] = None
+predictor: Optional[EnhancedPredictor] = None
 data_fetcher: Optional[RealTimeDataFetcher] = None
 
 
@@ -35,15 +35,16 @@ async def lifespan(app: FastAPI):
     
     print("🚀 Starting Silver Price Prediction API...")
     
-    # Initialize predictor with Ridge Regression (best performing model)
-    # Ridge is much lighter than LSTM - no TensorFlow required!
+    # Initialize predictor with Enhanced Model (with PCA and external features)
     try:
-        predictor = UnifiedPredictor(model_type='ridge')
-        predictor.load()
-        print("✓ Ridge Regression model loaded (R²=0.96, MAPE=3.37%)")
+        predictor = EnhancedPredictor()
+        predictor.load_data()
+        predictor.create_features()
+        predictor.load_model()
+        print("✓ Enhanced Ridge model loaded (R²=0.9649, MAPE=3.27%, 27 PCA components)")
     except Exception as e:
-        print(f"⚠️ Could not load Ridge model: {e}")
-        print("   Please train the model first: python src/train_ridge.py")
+        print(f"⚠️ Could not load Enhanced model: {e}")
+        print("   Falling back to basic model or train first: python src/enhanced_predictor.py")
         predictor = None
     
     # Initialize data fetcher

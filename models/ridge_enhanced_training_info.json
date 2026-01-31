@@ -1,0 +1,17 @@
+{
+  "model_type": "ridge_enhanced",
+  "trained_at": "2026-02-01T02:24:02.439280",
+  "features_count": 145,
+  "data_points": 4107,
+  "external_features": [
+    "Gold",
+    "DXY",
+    "VIX"
+  ],
+  "metrics": {
+    "r2_score": 0.96491025229942,
+    "rmse": 2.4809196388663173,
+    "mae": 1.242913178908467,
+    "mape": 3.2665046093133645
+  }
+}
