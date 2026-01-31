@@ -373,6 +373,82 @@ async def update_daily():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/update-external")
+async def update_external_data():
+    """
+    Cập nhật dữ liệu external (Gold, DXY, VIX) và reload model.
+    Được gọi bởi cron job sau khi update-daily để đảm bảo model có dữ liệu mới nhất.
+    """
+    global predictor
+    
+    try:
+        import sys
+        import pandas as pd
+        from datetime import datetime, timedelta
+        
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        
+        # Import fetch function
+        sys.path.insert(0, base_dir)
+        from fetch_external_data import fetch_external_data, merge_with_silver_data, save_enhanced_dataset
+        
+        # Paths
+        silver_csv = os.path.join(base_dir, 'dataset', 'dataset_silver.csv')
+        enhanced_csv = os.path.join(base_dir, 'dataset', 'dataset_enhanced.csv')
+        
+        # Get current record count
+        records_before = 0
+        if os.path.exists(enhanced_csv):
+            df_before = pd.read_csv(enhanced_csv)
+            records_before = len(df_before)
+        
+        # Fetch external data (last 30 days to catch up)
+        start_date = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+        external_df = fetch_external_data(start_date=start_date)
+        
+        if external_df.empty:
+            return {
+                "success": False,
+                "message": "Failed to fetch external data",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        # Merge with silver data
+        merged_df = merge_with_silver_data(external_df, silver_csv)
+        
+        if merged_df.empty:
+            return {
+                "success": False,
+                "message": "Failed to merge data",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        # Save enhanced dataset
+        save_enhanced_dataset(merged_df, enhanced_csv)
+        
+        records_after = len(merged_df)
+        records_added = records_after - records_before
+        
+        # Reload predictor with new data
+        if predictor is not None:
+            predictor.load_data()
+            predictor.create_features()
+            # Model weights don't change, just reload data
+        
+        return {
+            "success": True,
+            "message": f"Updated external data. {records_added} new record(s).",
+            "records_total": records_after,
+            "records_added": records_added,
+            "last_date": str(merged_df['Date'].max()) if not merged_df.empty else None,
+            "external_features": ["Gold", "DXY", "VIX"],
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/data-status")
 async def get_data_status():
     """
