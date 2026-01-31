@@ -35,7 +35,7 @@ async def lifespan(app: FastAPI):
     
     print("🚀 Starting Silver Price Prediction API...")
     
-    # Initialize predictor with Enhanced Model (with PCA and external features)
+    # Initialize predictor - try Enhanced first, fallback to Unified
     try:
         predictor = EnhancedPredictor()
         predictor.load_data()
@@ -44,8 +44,17 @@ async def lifespan(app: FastAPI):
         print("✓ Enhanced Ridge model loaded (R²=0.9649, MAPE=3.27%, 27 PCA components)")
     except Exception as e:
         print(f"⚠️ Could not load Enhanced model: {e}")
-        print("   Falling back to basic model or train first: python src/enhanced_predictor.py")
-        predictor = None
+        print("   Trying to fallback to UnifiedPredictor...")
+        try:
+            from src.unified_predictor import UnifiedPredictor
+            predictor = UnifiedPredictor()
+            predictor._load_data()
+            predictor._create_ridge_features()
+            predictor.load_ridge_model()
+            print("✓ Fallback: UnifiedPredictor loaded successfully")
+        except Exception as e2:
+            print(f"❌ Both predictors failed: {e2}")
+            predictor = None
     
     # Initialize data fetcher
     data_fetcher = RealTimeDataFetcher(cache_duration_minutes=5)
