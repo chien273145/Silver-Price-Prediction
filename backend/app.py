@@ -673,6 +673,15 @@ frontend_dir = os.path.join(
 if os.path.exists(frontend_dir):
     app.mount("/static", StaticFiles(directory=frontend_dir), name="static")
 
+    # Serve sitemap.xml and robots.txt from root
+    @app.get("/sitemap.xml")
+    async def get_sitemap():
+        return FileResponse(os.path.join(frontend_dir, "sitemap.xml"))
+
+    @app.get("/robots.txt") 
+    async def get_robots():
+        return FileResponse(os.path.join(frontend_dir, "robots.txt"))
+
 
 if __name__ == "__main__":
     import uvicorn
