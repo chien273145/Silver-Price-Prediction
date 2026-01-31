@@ -35,6 +35,7 @@ const elements = {
     loadingOverlay: document.getElementById('loadingOverlay'),
     toastContainer: document.getElementById('toastContainer'),
     refreshBtn: document.getElementById('refreshBtn'),
+    dataStatus: document.getElementById('dataStatus'),
     metricRMSE: document.getElementById('metricRMSE'),
     metricMAE: document.getElementById('metricMAE'),
     metricR2: document.getElementById('metricR2'),
@@ -121,6 +122,36 @@ async function getRealtime() {
 
 async function getModelInfo() {
     return await fetchAPI('/api/metrics');
+}
+
+async function getDataStatus() {
+    return await fetchAPI('/api/data-status');
+}
+
+// Update Data Status display
+function updateDataStatus(status) {
+    if (!status || !status.success) {
+        elements.dataStatus.classList.remove('current', 'outdated');
+        elements.dataStatus.querySelector('.status-text').textContent = 'Không có dữ liệu';
+        return;
+    }
+
+    const lastDate = new Date(status.last_date);
+    const formattedDate = lastDate.toLocaleDateString('vi-VN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+    });
+
+    if (status.is_current) {
+        elements.dataStatus.classList.add('current');
+        elements.dataStatus.classList.remove('outdated');
+        elements.dataStatus.querySelector('.status-text').textContent = `Dữ liệu: ${formattedDate}`;
+    } else {
+        elements.dataStatus.classList.add('outdated');
+        elements.dataStatus.classList.remove('current');
+        elements.dataStatus.querySelector('.status-text').textContent = `Dữ liệu cũ: ${formattedDate} (${status.days_old} ngày)`;
+    }
 }
 
 // Update Functions
@@ -368,11 +399,12 @@ async function loadData() {
 
     try {
         // Fetch all data in parallel
-        const [predictions, historical, realtime, modelInfo] = await Promise.all([
+        const [predictions, historical, realtime, modelInfo, dataStatus] = await Promise.all([
             getPredictions().catch(e => { console.error('Predictions error:', e); return null; }),
             getHistorical().catch(e => { console.error('Historical error:', e); return null; }),
             getRealtime().catch(e => { console.error('Realtime error:', e); return null; }),
-            getModelInfo().catch(e => { console.error('Model info error:', e); return null; })
+            getModelInfo().catch(e => { console.error('Model info error:', e); return null; }),
+            getDataStatus().catch(e => { console.error('Data status error:', e); return null; })
         ]);
 
         // Update state
@@ -393,6 +425,10 @@ async function loadData() {
 
         if (modelInfo) {
             updateModelMetrics();
+        }
+
+        if (dataStatus) {
+            updateDataStatus(dataStatus);
         }
 
         showToast('Dữ liệu đã được cập nhật', 'success');

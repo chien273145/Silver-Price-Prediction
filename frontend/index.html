@@ -1,23 +1,26 @@
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dự Đoán Giá Bạc | Silver Price Prediction</title>
     <meta name="description" content="Hệ thống AI dự đoán giá bạc 7 ngày sử dụng LSTM Deep Learning">
-    
+
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
-    
+
     <!-- Styles -->
     <link rel="stylesheet" href="/static/styles.css">
 </head>
+
 <body>
     <div class="app">
         <!-- Header -->
@@ -31,13 +34,19 @@
                     </div>
                 </div>
                 <div class="header-actions">
+                    <div class="data-status" id="dataStatus" title="Trạng thái dữ liệu">
+                        <span class="status-dot"></span>
+                        <span class="status-text">Đang kiểm tra...</span>
+                    </div>
                     <div class="currency-toggle">
                         <button class="toggle-btn active" data-currency="VND">VND</button>
                         <button class="toggle-btn" data-currency="USD">USD</button>
                     </div>
                     <button class="refresh-btn" id="refreshBtn" title="Làm mới dữ liệu">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path
+                                d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
                         </svg>
                     </button>
                 </div>
@@ -209,4 +218,5 @@
     <!-- Scripts -->
     <script src="/static/app.js"></script>
 </body>
+
 </html>

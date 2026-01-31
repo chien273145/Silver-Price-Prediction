@@ -10,40 +10,40 @@
     --bg-secondary: #12121a;
     --bg-card: rgba(24, 24, 36, 0.8);
     --bg-card-hover: rgba(32, 32, 48, 0.9);
-    
+
     --text-primary: #ffffff;
     --text-secondary: #a0a0b0;
     --text-muted: #6a6a7a;
-    
+
     --accent-primary: #c0c0c0;
     --accent-secondary: #8a8a9a;
     --accent-gold: #ffd700;
     --accent-silver: #c0c0c0;
-    
+
     --success: #10b981;
     --success-bg: rgba(16, 185, 129, 0.15);
     --danger: #ef4444;
     --danger-bg: rgba(239, 68, 68, 0.15);
     --warning: #f59e0b;
     --info: #3b82f6;
-    
+
     --gradient-silver: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     --gradient-card: linear-gradient(145deg, rgba(40, 40, 60, 0.6), rgba(20, 20, 30, 0.8));
-    
+
     /* Borders */
     --border-color: rgba(255, 255, 255, 0.08);
     --border-radius: 16px;
     --border-radius-sm: 8px;
-    
+
     /* Shadows */
     --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
     --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
     --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
     --shadow-glow: 0 0 40px rgba(192, 192, 192, 0.1);
-    
+
     /* Typography */
     --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    
+
     /* Transitions */
     --transition-fast: 0.15s ease;
     --transition-normal: 0.3s ease;
@@ -51,7 +51,9 @@
 }
 
 /* Reset & Base */
-*, *::before, *::after {
+*,
+*::before,
+*::after {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
@@ -79,7 +81,7 @@ body::before {
     left: 0;
     width: 100%;
     height: 100%;
-    background: 
+    background:
         radial-gradient(circle at 20% 20%, rgba(102, 126, 234, 0.08) 0%, transparent 50%),
         radial-gradient(circle at 80% 80%, rgba(118, 75, 162, 0.08) 0%, transparent 50%),
         radial-gradient(circle at 50% 50%, rgba(192, 192, 192, 0.03) 0%, transparent 70%);
@@ -147,6 +149,38 @@ body::before {
     gap: 1rem;
 }
 
+.data-status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.data-status .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--warning);
+}
+
+.data-status.current .status-dot {
+    background: var(--success);
+    animation: pulse 2s infinite;
+}
+
+.data-status.outdated .status-dot {
+    background: var(--danger);
+}
+
+.data-status .status-text {
+    white-space: nowrap;
+}
+
 .currency-toggle {
     display: flex;
     background: var(--bg-secondary);
@@ -201,8 +235,13 @@ body::before {
 }
 
 @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 /* Main Content */
@@ -294,8 +333,17 @@ body::before {
 }
 
 @keyframes pulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.5; transform: scale(1.2); }
+
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 0.5;
+        transform: scale(1.2);
+    }
 }
 
 .trend-badge {
@@ -335,19 +383,22 @@ body::before {
     gap: 0.75rem;
 }
 
-.change-value, .change-percent {
+.change-value,
+.change-percent {
     padding: 0.25rem 0.5rem;
     border-radius: 4px;
     font-size: 0.875rem;
     font-weight: 600;
 }
 
-.change-value.positive, .change-percent.positive {
+.change-value.positive,
+.change-percent.positive {
     background: var(--success-bg);
     color: var(--success);
 }
 
-.change-value.negative, .change-percent.negative {
+.change-value.negative,
+.change-percent.negative {
     background: var(--danger-bg);
     color: var(--danger);
 }
@@ -620,6 +671,7 @@ body::before {
         opacity: 0;
         transform: translateX(100%);
     }
+
     to {
         opacity: 1;
         transform: translateX(0);
@@ -631,11 +683,11 @@ body::before {
     .price-cards {
         grid-template-columns: repeat(2, 1fr);
     }
-    
+
     .stats-card {
         grid-column: span 2;
     }
-    
+
     .model-metrics {
         grid-template-columns: repeat(2, 1fr);
     }
@@ -645,35 +697,35 @@ body::before {
     .header-content {
         padding: 1rem;
     }
-    
+
     .logo-text h1 {
         font-size: 1.25rem;
     }
-    
+
     .main {
         padding: 1rem;
     }
-    
+
     .price-cards {
         grid-template-columns: 1fr;
     }
-    
+
     .stats-card {
         grid-column: auto;
     }
-    
+
     .card-value {
         font-size: 2rem;
     }
-    
+
     .chart-container {
         height: 300px;
     }
-    
+
     .model-metrics {
         grid-template-columns: 1fr;
     }
-    
+
     .chart-controls {
         flex-wrap: wrap;
     }
@@ -683,20 +735,20 @@ body::before {
     .header-actions {
         gap: 0.5rem;
     }
-    
+
     .toggle-btn {
         padding: 0.4rem 0.75rem;
         font-size: 0.75rem;
     }
-    
+
     .card {
         padding: 1rem;
     }
-    
+
     .card-value {
         font-size: 1.75rem;
     }
-    
+
     .prediction-table th,
     .prediction-table td {
         padding: 0.75rem 0.5rem;

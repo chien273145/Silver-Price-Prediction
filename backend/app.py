@@ -311,6 +311,112 @@ async def update_data():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/update-daily")
+async def update_daily():
+    """
+    Cập nhật dữ liệu giá bạc hàng ngày.
+    Được gọi bởi cron job mỗi ngày để cập nhật dữ liệu mới nhất.
+    """
+    global data_fetcher, predictor
+    
+    try:
+        import pandas as pd
+        
+        # Path to dataset
+        csv_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            'dataset', 'dataset_silver.csv'
+        )
+        
+        # Read current data to get last date
+        if os.path.exists(csv_path):
+            df = pd.read_csv(csv_path)
+            df['Date'] = pd.to_datetime(df['Date'])
+            last_date = df['Date'].max()
+            records_before = len(df)
+        else:
+            last_date = None
+            records_before = 0
+        
+        # Update CSV with latest data
+        success = data_fetcher.update_csv_with_latest(csv_path)
+        
+        # Count new records
+        if os.path.exists(csv_path):
+            df_after = pd.read_csv(csv_path)
+            records_after = len(df_after)
+            df_after['Date'] = pd.to_datetime(df_after['Date'])
+            new_last_date = df_after['Date'].max()
+        else:
+            records_after = 0
+            new_last_date = None
+        
+        records_added = records_after - records_before
+        
+        # Reload predictor data if new records were added
+        if records_added > 0 and predictor is not None:
+            predictor._load_data()
+            predictor._create_ridge_features()
+        
+        return {
+            "success": success,
+            "message": f"Added {records_added} new record(s)" if records_added > 0 else "Data is up to date",
+            "records_added": records_added,
+            "total_records": records_after,
+            "last_date": new_last_date.strftime("%Y-%m-%d") if new_last_date else None,
+            "previous_date": last_date.strftime("%Y-%m-%d") if last_date else None,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/data-status")
+async def get_data_status():
+    """
+    Lấy trạng thái dữ liệu: ngày cập nhật cuối, số lượng records.
+    """
+    try:
+        import pandas as pd
+        
+        csv_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            'dataset', 'dataset_silver.csv'
+        )
+        
+        if not os.path.exists(csv_path):
+            return {
+                "success": False,
+                "message": "Dataset not found"
+            }
+        
+        df = pd.read_csv(csv_path)
+        df['Date'] = pd.to_datetime(df['Date'])
+        
+        last_date = df['Date'].max()
+        first_date = df['Date'].min()
+        
+        # Check if data is current (within last 2 days for weekends)
+        from datetime import timedelta
+        days_old = (datetime.now() - last_date.to_pydatetime()).days
+        is_current = days_old <= 2
+        
+        return {
+            "success": True,
+            "total_records": len(df),
+            "first_date": first_date.strftime("%Y-%m-%d"),
+            "last_date": last_date.strftime("%Y-%m-%d"),
+            "days_old": days_old,
+            "is_current": is_current,
+            "last_price_usd": float(df.iloc[-1]['Close']),
+            "checked_at": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/health")
 async def health_check():
     """Health check endpoint."""
