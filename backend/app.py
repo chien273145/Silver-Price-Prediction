@@ -927,6 +927,10 @@ if os.path.exists(frontend_dir):
     async def get_ads_txt():
         return FileResponse(os.path.join(frontend_dir, "ads.txt"))
 
+    @app.get("/favicon.ico")
+    async def get_favicon():
+        return FileResponse(os.path.join(frontend_dir, "favicon.png"))
+
 
 if __name__ == "__main__":
     import uvicorn
