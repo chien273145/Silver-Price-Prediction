@@ -1173,13 +1173,44 @@ body::before {
 
 @media (max-width: 768px) {
     .header-content {
-        padding: 1rem;
-        flex-wrap: wrap;
-        gap: 1rem;
+        padding: 0.5rem 1rem;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .logo {
+        justify-content: center;
+        margin-bottom: 0;
+    }
+
+    .logo-icon {
+        font-size: 1.5rem;
     }
 
     .logo-text h1 {
-        font-size: 1.25rem;
+        font-size: 1.1rem;
+        text-align: center;
+    }
+
+    .logo-text .subtitle {
+        display: none;
+    }
+
+    .header-actions {
+        width: 100%;
+        justify-content: center;
+        gap: 0.5rem;
+        flex-wrap: nowrap;
+    }
+
+    .data-status {
+        display: none;
+    }
+
+    .asset-btn,
+    .toggle-btn {
+        padding: 0.4rem 0.8rem;
+        font-size: 0.75rem;
     }
 
     .main {
@@ -1199,7 +1230,7 @@ body::before {
     }
 
     .chart-container {
-        height: 320px;
+        height: 280px;
     }
 
     .model-metrics {
@@ -1208,6 +1239,7 @@ body::before {
 
     .chart-controls {
         flex-wrap: wrap;
+        justify-content: center;
     }
 }
 
@@ -1270,6 +1302,7 @@ body::before {
     background: rgba(255, 215, 0, 0.3);
     color: var(--text-primary);
 }
+
 /* ========== INFO & MARKET ANALYSIS SECTIONS ========== */
 .info-section {
     display: grid;
@@ -1394,6 +1427,7 @@ body::before {
         transform: translateY(-50px);
         opacity: 0;
     }
+
     to {
         transform: translateY(0);
         opacity: 1;
@@ -1447,15 +1481,15 @@ body::before {
     .info-section {
         grid-template-columns: 1fr;
     }
-    
+
     .price-cards {
         grid-template-columns: 1fr;
     }
-    
+
     .model-metrics {
         grid-template-columns: repeat(2, 1fr);
     }
-    
+
     .header-content {
         flex-direction: column;
         gap: 1rem;

@@ -253,7 +253,10 @@ async function getDataStatus() {
 }
 
 // Update Data Status display
+// Update Data Status display (Debug Info Disabled)
 function updateDebugInfo(endpoint, data) {
+    // Debug info disabled for production UI
+    /*
     let debugEl = document.getElementById('debug-info');
     if (!debugEl) {
         debugEl = document.createElement('div');
@@ -290,6 +293,7 @@ function updateDebugInfo(endpoint, data) {
         <div>Success: ${data?.success}</div>
         <div>Time: ${new Date().toLocaleTimeString()}</div>
     `;
+    */
 }
 
 function updateDataStatus(status) {
