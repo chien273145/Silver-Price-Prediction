@@ -202,6 +202,27 @@ async def root():
         }
     }
 
+# Blog Routes
+@app.get("/blog")
+async def blog_index():
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'frontend', 'blog', 'index.html')
+    return FileResponse(path)
+
+@app.get("/blog/ai-cong-nghe")
+async def blog_ai():
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'frontend', 'blog', 'ai-cong-nghe.html')
+    return FileResponse(path)
+
+@app.get("/blog/phan-tich-kinh-te")
+async def blog_economics():
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'frontend', 'blog', 'phan-tich-kinh-te.html')
+    return FileResponse(path)
+
+@app.get("/blog/huong-dan-su-dung")
+async def blog_guide():
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'frontend', 'blog', 'huong-dan-su-dung.html')
+    return FileResponse(path)
+
 
 @app.get("/api/predict", response_model=PredictionResponse)
 async def predict(
