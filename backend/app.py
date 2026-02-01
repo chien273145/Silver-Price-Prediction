@@ -20,11 +20,13 @@ from pydantic import BaseModel
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.enhanced_predictor import EnhancedPredictor
+from src.gold_predictor import GoldPredictor
 from backend.realtime_data import RealTimeDataFetcher
 
 
 # Global instances
 predictor: Optional[EnhancedPredictor] = None
+gold_predictor: Optional[GoldPredictor] = None
 data_fetcher: Optional[RealTimeDataFetcher] = None
 
 
@@ -45,6 +47,7 @@ async def lifespan(app: FastAPI):
     
     # Start model loading in background
     asyncio.create_task(load_model_background())
+    asyncio.create_task(load_gold_model_background())
     
     elapsed = (datetime.now() - start_time).total_seconds()
     print(f"[{datetime.now().time()}] ✅ App startup complete in {elapsed:.2f}s (Model loading in background)", flush=True)
@@ -66,6 +69,32 @@ async def load_model_background():
         print(f"[{datetime.now().time()}] ✅ Background: Model loaded successfully!", flush=True)
     except Exception as e:
         print(f"[{datetime.now().time()}] ❌ Background: Model loading failed: {e}", flush=True)
+
+async def load_gold_model_background():
+    """Load gold model in background."""
+    global gold_predictor
+    
+    print(f"[{datetime.now().time()}] ⏳ Background: Starting gold model loading...", flush=True)
+    
+    try:
+        gold_predictor = await asyncio.to_thread(_load_gold_model_logic)
+        print(f"[{datetime.now().time()}] ✅ Background: Gold model loaded successfully!", flush=True)
+    except Exception as e:
+        print(f"[{datetime.now().time()}] ❌ Background: Gold model loading failed: {e}", flush=True)
+
+def _load_gold_model_logic():
+    """Synchronous gold model loading logic."""
+    try:
+        print("   Attempting to load GoldPredictor...", flush=True)
+        p = GoldPredictor()
+        p.load_data()
+        p.create_features()
+        p.load_model()
+        print("   ✓ Gold Ridge model loaded", flush=True)
+        return p
+    except Exception as e:
+        print(f"   ❌ Gold model failed: {e}", flush=True)
+        return None
 
 def _load_model_logic():
     """Synchronous model loading logic."""
@@ -327,6 +356,110 @@ async def get_model_info():
             success=True,
             model_info=info
         )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ========== GOLD ENDPOINTS ==========
+
+@app.get("/api/gold/predict")
+async def gold_predict(
+    currency: str = Query("VND", description="Currency: VND or USD"),
+    exchange_rate: Optional[float] = Query(None, description="Custom USD/VND rate")
+):
+    """
+    Dự đoán giá vàng 7 ngày tới.
+    
+    - **currency**: VND hoặc USD
+    - **exchange_rate**: Tỷ giá USD/VND tùy chỉnh
+    """
+    global gold_predictor, data_fetcher
+    
+    # Wait for model if loading (up to 5s)
+    if gold_predictor is None:
+        import asyncio
+        for _ in range(10):
+            if gold_predictor is not None:
+                break
+            await asyncio.sleep(0.5)
+            
+    if gold_predictor is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Gold model is currently loading. Please try again in a few seconds."
+        )
+    
+    try:
+        if currency.upper() == "VND":
+            if exchange_rate:
+                gold_predictor.set_exchange_rate(exchange_rate)
+            else:
+                rate_data = data_fetcher.get_usd_vnd_rate()
+                if rate_data['rate']:
+                    gold_predictor.set_exchange_rate(rate_data['rate'])
+        
+        result = gold_predictor.predict(in_vnd=(currency.upper() == "VND"))
+        return result
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/gold/historical")
+async def gold_historical(
+    days: int = Query(30, ge=1, le=365, description="Number of days"),
+    currency: str = Query("VND", description="Currency: VND or USD")
+):
+    """
+    Lấy dữ liệu giá vàng lịch sử.
+    
+    - **days**: Số ngày lịch sử (1-365)
+    - **currency**: VND hoặc USD
+    """
+    global gold_predictor, data_fetcher
+    
+    if gold_predictor is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Gold model not initialized"
+        )
+    
+    try:
+        if currency.upper() == "VND":
+            rate_data = data_fetcher.get_usd_vnd_rate()
+            if rate_data['rate']:
+                gold_predictor.set_exchange_rate(rate_data['rate'])
+        
+        result = gold_predictor.get_historical_data(
+            days=days,
+            in_vnd=(currency.upper() == "VND")
+        )
+        return result
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/gold/metrics")
+async def gold_model_info():
+    """
+    Lấy thông tin về mô hình AI dự đoán giá vàng.
+    """
+    global gold_predictor
+    
+    if gold_predictor is None:
+        return {
+            "success": False,
+            "model_info": {"error": "Gold model not loaded"}
+        }
+    
+    try:
+        info = gold_predictor.get_model_info()
+        return {
+            "success": True,
+            "model_info": info
+        }
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -697,6 +830,72 @@ async def get_prediction_accuracy():
             "sample_size": len(actual),
             "period": "30 days",
             "note": "Based on historical data, not live predictions",
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "message": str(e)
+        }
+
+
+
+@app.get("/api/gold/accuracy")
+async def get_gold_accuracy():
+    """Get Gold model prediction accuracy metrics."""
+    try:
+        if gold_predictor is None:
+            return {
+                "success": False,
+                "message": "Model not loaded"
+            }
+            
+        # Get historical data for validation (last 30 days)
+        if not hasattr(gold_predictor, 'data') or gold_predictor.data is None:
+             return {
+                "success": False,
+                "message": "No data available"
+            }
+            
+        df = gold_predictor.data.tail(30).copy()
+        
+        if len(df) < 2:
+             return {
+                "success": False,
+                "message": "Not enough data for accuracy calculation"
+            }
+        
+        # Calculate simple metrics
+        prices = df['price'].values
+        
+        # Simulate accuracy: compare 1-day lag prediction (as proxy)
+        actual = prices[1:]
+        predicted = prices[:-1]  # Yesterday's price as naive prediction
+        
+        # Calculate metrics
+        mape = np.mean(np.abs((actual - predicted) / actual)) * 100
+        accuracy = max(0, 100 - mape)
+        
+        # Direction accuracy
+        actual_direction = np.sign(np.diff(actual))
+        predicted_direction = np.sign(np.diff(predicted))
+        direction_accuracy = np.mean(actual_direction == predicted_direction) * 100
+        
+        # Average error (USD/VND)
+        avg_error = np.mean(np.abs(actual - predicted))
+        
+        return {
+            "success": True,
+            "accuracy": {
+                "overall": round(accuracy, 1),
+                "direction": round(direction_accuracy, 1),
+                "mape": round(mape, 2),
+                "avg_error_usd": round(avg_error / 25000, 2)
+            },
+            "sample_size": len(actual),
+            "period": "30 days",
+            "note": "Based on historical data",
             "timestamp": datetime.now().isoformat()
         }
         

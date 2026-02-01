@@ -47,7 +47,7 @@ class EnhancedPredictor:
         
         self.usd_vnd_rate = DEFAULT_USD_VND_RATE
         self.troy_ounce_to_luong = 1.20565
-        self.vietnam_premium = 1.24
+        self.vietnam_premium = 1.125
         
     def load_data(self):
         """Load enhanced dataset."""

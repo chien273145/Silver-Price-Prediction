@@ -8,6 +8,7 @@ const API_BASE = window.location.origin;
 
 // State
 const state = {
+    asset: 'silver',  // 'silver' or 'gold'
     currency: 'VND',
     historicalDays: 90,
     predictions: null,
@@ -17,6 +18,104 @@ const state = {
     chart: null,
     refreshInterval: null
 };
+
+// ========== PARTICLE EFFECTS ==========
+function createParticles() {
+    const container = document.getElementById('particles');
+    if (!container) return;
+
+    const particleCount = 20;
+
+    for (let i = 0; i < particleCount; i++) {
+        const particle = document.createElement('div');
+        particle.className = `particle ${Math.random() > 0.5 ? 'gold' : 'silver'}`;
+
+        // Random position and animation
+        particle.style.left = `${Math.random() * 100}%`;
+        particle.style.animationDelay = `${Math.random() * 15}s`;
+        particle.style.animationDuration = `${15 + Math.random() * 10}s`;
+        particle.style.width = `${3 + Math.random() * 4}px`;
+        particle.style.height = particle.style.width;
+
+        container.appendChild(particle);
+    }
+}
+
+// ========== SMOOTH NUMBER ANIMATION ==========
+function animateNumber(element, targetValue, duration = 800) {
+    if (!element) return;
+
+    const startValue = parseInt(element.textContent.replace(/[^\d.-]/g, '')) || 0;
+    const startTime = performance.now();
+
+    function update(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+
+        // Easing function (ease-out-cubic)
+        const easeProgress = 1 - Math.pow(1 - progress, 3);
+        const currentValue = startValue + (targetValue - startValue) * easeProgress;
+
+        if (state.currency === 'VND') {
+            element.textContent = new Intl.NumberFormat('vi-VN').format(Math.round(currentValue));
+        } else {
+            element.textContent = new Intl.NumberFormat('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }).format(currentValue);
+        }
+
+        if (progress < 1) {
+            requestAnimationFrame(update);
+        }
+    }
+
+    requestAnimationFrame(update);
+}
+
+// ========== UPDATE UI FOR ASSET TYPE ==========
+function updateUIForAsset() {
+    const isGold = state.asset === 'gold';
+
+    // Update logo and titles
+    if (elements.logoIcon) elements.logoIcon.textContent = isGold ? '🥇' : '🥈';
+    if (elements.appTitle) elements.appTitle.textContent = isGold ? 'Gold Price AI' : 'Silver Price AI';
+    if (elements.appSubtitle) elements.appSubtitle.textContent = isGold ? 'Dự đoán giá vàng thông minh' : 'Dự đoán giá bạc thông minh';
+
+    // Update model badge
+    const modelBadge = document.getElementById('modelBadge');
+    if (modelBadge) {
+        modelBadge.textContent = isGold ? 'Gold Ridge + VIX/DXY' : 'Silver Ridge Regression';
+    }
+
+    // Update model metrics for gold
+    if (isGold) {
+        const modelR2 = document.getElementById('modelR2');
+        const modelMAPE = document.getElementById('modelMAPE');
+        const modelFeatures = document.getElementById('modelFeatures');
+        const modelData = document.getElementById('modelData');
+
+        if (modelR2) modelR2.textContent = '0.97';
+        if (modelMAPE) modelMAPE.textContent = '3.44%';
+        if (modelFeatures) modelFeatures.textContent = '91';
+        if (modelData) modelData.textContent = 'VIX, DXY, Oil';
+    } else {
+        const modelR2 = document.getElementById('modelR2');
+        const modelMAPE = document.getElementById('modelMAPE');
+        const modelFeatures = document.getElementById('modelFeatures');
+        const modelData = document.getElementById('modelData');
+
+        if (modelR2) modelR2.textContent = '0.96';
+        if (modelMAPE) modelMAPE.textContent = '3.37%';
+        if (modelFeatures) modelFeatures.textContent = '44';
+        if (modelData) modelData.textContent = 'GS Ratio, GPR';
+    }
+
+    // Update document title
+    document.title = isGold
+        ? 'Gold Price Prediction | Premium AI Forecasting'
+        : 'Silver Price Prediction | Premium AI Forecasting';
+}
 
 // DOM Elements
 const elements = {
@@ -44,7 +143,11 @@ const elements = {
     newsList: document.getElementById('newsList'),
     refreshNewsBtn: document.getElementById('refreshNewsBtn'),
     accuracyBadge: document.getElementById('accuracyBadge'),
-    accuracyContent: document.getElementById('accuracyContent')
+    accuracyContent: document.getElementById('accuracyContent'),
+    // Asset toggle elements
+    logoIcon: document.getElementById('logoIcon'),
+    appTitle: document.getElementById('appTitle'),
+    appSubtitle: document.getElementById('appSubtitle')
 };
 
 // Utility Functions
@@ -102,7 +205,10 @@ function showToast(message, type = 'info') {
 // API Functions
 async function fetchAPI(endpoint) {
     try {
-        const response = await fetch(`${API_BASE}${endpoint}`);
+        // Add timestamp to prevent caching
+        const url = `${API_BASE}${endpoint}${endpoint.includes('?') ? '&' : '?'}t=${Date.now()}`;
+        console.log(`Fetching: ${url}`);
+        const response = await fetch(url);
         if (!response.ok) {
             throw new Error(`API Error: ${response.status}`);
         }
@@ -114,11 +220,23 @@ async function fetchAPI(endpoint) {
 }
 
 async function getPredictions() {
-    return await fetchAPI(`/api/predict?currency=${state.currency}`);
+    const endpoint = state.asset === 'gold'
+        ? `/api/gold/predict?currency=${state.currency}`
+        : `/api/predict?currency=${state.currency}`;
+
+    // DEBUG: Log endpoint choice
+    console.log(`[DEBUG] getPredictions asset=${state.asset} endpoint=${endpoint}`);
+
+    const data = await fetchAPI(endpoint);
+    updateDebugInfo(endpoint, data);
+    return data;
 }
 
 async function getHistorical() {
-    return await fetchAPI(`/api/historical?days=${state.historicalDays}&currency=${state.currency}`);
+    const endpoint = state.asset === 'gold'
+        ? `/api/gold/historical?days=${state.historicalDays}&currency=${state.currency}`
+        : `/api/historical?days=${state.historicalDays}&currency=${state.currency}`;
+    return await fetchAPI(endpoint);
 }
 
 async function getRealtime() {
@@ -126,7 +244,8 @@ async function getRealtime() {
 }
 
 async function getModelInfo() {
-    return await fetchAPI('/api/metrics');
+    const endpoint = state.asset === 'gold' ? '/api/gold/metrics' : '/api/metrics';
+    return await fetchAPI(endpoint);
 }
 
 async function getDataStatus() {
@@ -134,6 +253,45 @@ async function getDataStatus() {
 }
 
 // Update Data Status display
+function updateDebugInfo(endpoint, data) {
+    let debugEl = document.getElementById('debug-info');
+    if (!debugEl) {
+        debugEl = document.createElement('div');
+        debugEl.id = 'debug-info';
+        debugEl.style.position = 'fixed';
+        debugEl.style.bottom = '10px';
+        debugEl.style.left = '10px';
+        debugEl.style.background = 'rgba(0,0,0,0.85)';
+        debugEl.style.color = '#00ff00';
+        debugEl.style.padding = '12px';
+        debugEl.style.borderRadius = '8px';
+        debugEl.style.fontSize = '12px';
+        debugEl.style.zIndex = '99999';
+        debugEl.style.fontFamily = 'monospace';
+        debugEl.style.pointerEvents = 'none';
+        debugEl.style.border = '1px solid #333';
+        document.body.appendChild(debugEl);
+    }
+
+    const price = data?.last_known?.price
+        ? new Intl.NumberFormat('en-US').format(data.last_known.price)
+        : 'N/A';
+
+    const firstPred = data?.predictions && data.predictions[0]
+        ? new Intl.NumberFormat('en-US').format(data.predictions[0].price)
+        : 'N/A';
+
+    debugEl.innerHTML = `
+        <div style="margin-bottom:4px;color:#fff;font-weight:bold">🔍 DEBUG INFO</div>
+        <div>Asset State: <span style="color:${state.asset === 'gold' ? 'gold' : 'silver'}">${state.asset.toUpperCase()}</span></div>
+        <div>Endpoint: ${endpoint.split('?')[0]}</div>
+        <div>Last Price: ${price}</div>
+        <div>Pred[0]: ${firstPred}</div>
+        <div>Success: ${data?.success}</div>
+        <div>Time: ${new Date().toLocaleTimeString()}</div>
+    `;
+}
+
 function updateDataStatus(status) {
     if (!status || !status.success) {
         elements.dataStatus.classList.remove('current', 'outdated');
@@ -161,12 +319,29 @@ function updateDataStatus(status) {
 
 // Update Functions
 function updatePriceCards() {
-    if (!state.predictions) return;
+    if (!state.predictions) {
+        elements.currentPrice.textContent = '--';
+        elements.priceUnit.textContent = '';
+        if (elements.priceChange) {
+            elements.priceChange.querySelector('.change-value').textContent = '--';
+            elements.priceChange.querySelector('.change-percent').textContent = '--';
+        }
+        elements.predictedPrice.textContent = '--';
+        if (elements.predictionChange) {
+            elements.predictionChange.querySelector('.change-value').textContent = '--';
+            elements.predictionChange.querySelector('.change-percent').textContent = '--';
+        }
+        elements.minPrice.textContent = '--';
+        elements.maxPrice.textContent = '--';
+        elements.avgPrice.textContent = '--';
+        elements.exchangeRate.textContent = '--';
+        return;
+    }
 
     const { last_known, predictions, summary, exchange_rate, unit } = state.predictions;
 
-    // Current price
-    elements.currentPrice.textContent = formatPrice(last_known.price);
+    // Current price with animation
+    animateNumber(elements.currentPrice, last_known.price);
     elements.priceUnit.textContent = unit;
 
     // Price change (using realtime if available)
@@ -216,7 +391,10 @@ function updatePriceCards() {
 }
 
 function updatePredictionTable() {
-    if (!state.predictions) return;
+    if (!state.predictions) {
+        elements.predictionTable.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 2rem;">Đang tải dữ liệu...</td></tr>';
+        return;
+    }
 
     const { predictions, last_known } = state.predictions;
 
@@ -244,7 +422,13 @@ function updatePredictionTable() {
 }
 
 function updateModelMetrics() {
-    if (!state.modelInfo || !state.modelInfo.model_info) return;
+    if (!state.modelInfo || !state.modelInfo.model_info) {
+        elements.metricRMSE.textContent = '--';
+        elements.metricMAE.textContent = '--';
+        elements.metricR2.textContent = '--';
+        elements.metricMAPE.textContent = '--';
+        return;
+    }
 
     const info = state.modelInfo.model_info;
 
@@ -443,6 +627,10 @@ async function loadData() {
     showLoading(true);
     elements.refreshBtn.classList.add('loading');
 
+    // Clear previous state to avoid mixing data
+    const currentAsset = state.asset;
+    console.log(`Loading data for: ${currentAsset} (${state.currency})`);
+
     try {
         // Fetch all data in parallel
         const [predictions, historical, realtime, modelInfo, dataStatus] = await Promise.all([
@@ -453,6 +641,12 @@ async function loadData() {
             getDataStatus().catch(e => { console.error('Data status error:', e); return null; })
         ]);
 
+        // Verify we are still on the same asset (race condition check)
+        if (state.asset !== currentAsset) {
+            console.log('Asset changed during load, ignoring result');
+            return;
+        }
+
         // Update state
         state.predictions = predictions;
         state.historical = historical;
@@ -460,13 +654,24 @@ async function loadData() {
         state.modelInfo = modelInfo;
 
         // Update UI
-        if (predictions) {
+        let updated = false;
+
+        if (predictions && predictions.success) {
+            updatePriceCards();
+            updatePredictionTable();
+            updated = true;
+        } else {
+            console.error('No predictions data received or success=false', predictions);
+            showToast('Không thể tải dữ liệu dự đoán', 'error');
+            // Reset UI
             updatePriceCards();
             updatePredictionTable();
         }
 
-        if (historical && predictions) {
+        if (historical && historical.success && predictions && predictions.success) {
             updateChart();
+        } else {
+            if (state.chart) state.chart.destroy();
         }
 
         if (modelInfo) {
@@ -477,11 +682,27 @@ async function loadData() {
             updateDataStatus(dataStatus);
         }
 
-        showToast('Dữ liệu đã được cập nhật', 'success');
+        if (updated) {
+            showToast('Dữ liệu đã được cập nhật', 'success');
+        }
 
     } catch (error) {
         console.error('Error loading data:', error);
-        showToast('Lỗi khi tải dữ liệu. Vui lòng thử lại.', 'error');
+
+        // Detailed error message for user
+        let msg = 'Lỗi khi tải dữ liệu.';
+        if (error.message.includes('503')) msg += ' Server đang khởi động mô hình (503).';
+        else if (error.message.includes('500')) msg += ' Lỗi server (500).';
+        else if (error.message.includes('Network')) msg += ' Lỗi kết nối mạng.';
+
+        showToast(`${msg} Vui lòng thử lại.`, 'error');
+
+        // Reset UI to empty state on error
+        updatePriceCards();
+        updatePredictionTable();
+        updateModelMetrics();
+        if (state.chart) state.chart.destroy();
+
     } finally {
         showLoading(false);
         elements.refreshBtn.classList.remove('loading');
@@ -513,15 +734,32 @@ function setupEventListeners() {
     // Refresh button
     elements.refreshBtn.addEventListener('click', loadData);
 
+    // Asset toggle (Silver/Gold)
+    document.querySelectorAll('.asset-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.asset-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            state.asset = btn.dataset.asset;
+            updateUIForAsset();
+            loadData();
+            loadAccuracy(); // Refresh accuracy metrics for new asset
+        });
+    });
+
     // Auto refresh every 5 minutes
     state.refreshInterval = setInterval(loadData, 5 * 60 * 1000);
 }
 
+
+
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('🥈 Silver Price Prediction Dashboard');
+    const assetEmoji = state.asset === 'gold' ? '🥇' : '🥈';
+    console.log(`${assetEmoji} Metal Price Prediction Dashboard`);
     console.log('   Initializing...');
 
+    createParticles();
+    updateUIForAsset();
     setupEventListeners();
     loadData();
     loadNews();
@@ -603,7 +841,8 @@ async function loadAccuracy() {
     if (!elements.accuracyContent) return;
 
     try {
-        const response = await fetch(`${API_BASE}/api/accuracy`);
+        const endpoint = state.asset === 'gold' ? '/api/gold/accuracy' : '/api/accuracy';
+        const response = await fetch(`${API_BASE}${endpoint}?t=${Date.now()}`);
         const data = await response.json();
 
         if (data.success) {

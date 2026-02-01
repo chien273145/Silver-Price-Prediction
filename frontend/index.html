@@ -4,11 +4,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dự Đoán Giá Bạc Hôm Nay | Silver Price Prediction AI</title>
+    <title>Gold & Silver Price Prediction | Premium AI Forecasting</title>
     <meta name="description"
-        content="Dự đoán giá bạc 7 ngày tới bằng AI Machine Learning. Xem giá bạc thế giới, phân tích xu hướng, tin tức thị trường kim loại quý cập nhật hàng ngày.">
-    <meta name="keywords" content="giá bạc, dự đoán giá bạc, silver price, giá bạc hôm nay, đầu tư bạc, kim loại quý">
-    <meta name="author" content="Silver Price AI">
+        content="Dự đoán giá vàng và bạc 7 ngày tới bằng AI Machine Learning. Phân tích VIX, DXY, Oil, Interest Rates. Độ chính xác R²=97%.">
+    <meta name="keywords"
+        content="giá vàng, giá bạc, dự đoán giá vàng, gold price, silver price, AI prediction, VIX, DXY">
+    <meta name="author" content="Precious Metals AI">
     <meta name="robots" content="index, follow">
 
     <!-- Open Graph / Facebook -->
@@ -54,18 +55,25 @@
 </head>
 
 <body>
+    <!-- Floating Particles -->
+    <div class="particles" id="particles"></div>
+
     <div class="app">
         <!-- Header -->
         <header class="header">
             <div class="header-content">
                 <div class="logo">
-                    <span class="logo-icon">🥈</span>
+                    <span class="logo-icon" id="logoIcon">🥈</span>
                     <div class="logo-text">
-                        <h1>Silver Price AI</h1>
-                        <span class="subtitle">Dự đoán giá bạc thông minh</span>
+                        <h1 id="appTitle">Silver Price AI</h1>
+                        <span class="subtitle" id="appSubtitle">Dự đoán giá bạc thông minh</span>
                     </div>
                 </div>
                 <div class="header-actions">
+                    <div class="asset-toggle">
+                        <button class="asset-btn active" data-asset="silver" title="Giá Bạc">🥈 Bạc</button>
+                        <button class="asset-btn" data-asset="gold" title="Giá Vàng">🥇 Vàng</button>
+                    </div>
                     <div class="data-status" id="dataStatus" title="Trạng thái dữ liệu">
                         <span class="status-dot"></span>
                         <span class="status-text">Đang kiểm tra...</span>
@@ -202,35 +210,35 @@
                 <div class="card model-card">
                     <div class="card-header">
                         <span class="card-label">Thông tin mô hình AI</span>
-                        <span class="model-badge">Ridge Regression</span>
+                        <span class="model-badge" id="modelBadge">Ridge Regression</span>
                     </div>
                     <div class="model-metrics">
                         <div class="metric-item">
                             <div class="metric-icon">🎯</div>
                             <div class="metric-info">
                                 <span class="metric-label">R² Score</span>
-                                <span class="metric-value">0.96</span>
+                                <span class="metric-value" id="modelR2">0.97</span>
                             </div>
                         </div>
                         <div class="metric-item">
                             <div class="metric-icon">📉</div>
                             <div class="metric-info">
                                 <span class="metric-label">MAPE</span>
-                                <span class="metric-value">3.37%</span>
+                                <span class="metric-value" id="modelMAPE">3.44%</span>
                             </div>
                         </div>
                         <div class="metric-item">
                             <div class="metric-icon">📊</div>
                             <div class="metric-info">
-                                <span class="metric-label">RMSE</span>
-                                <span class="metric-value">$0.89</span>
+                                <span class="metric-label">Features</span>
+                                <span class="metric-value" id="modelFeatures">91</span>
                             </div>
                         </div>
                         <div class="metric-item">
-                            <div class="metric-icon">📈</div>
+                            <div class="metric-icon">🧠</div>
                             <div class="metric-info">
-                                <span class="metric-label">MAE</span>
-                                <span class="metric-value">$0.71</span>
+                                <span class="metric-label">Data Sources</span>
+                                <span class="metric-value" id="modelData">VIX, DXY, Oil</span>
                             </div>
                         </div>
                     </div>
@@ -290,7 +298,7 @@
         <!-- Footer -->
         <footer class="footer">
             <div class="footer-content">
-                <p>🥈 Silver Price Prediction System | Powered by AI & Machine Learning</p>
+                <p>🏆 Precious Metals AI | Gold & Silver Price Prediction</p>
                 <p class="disclaimer">⚠️ Dự đoán chỉ mang tính chất tham khảo, không phải lời khuyên đầu tư</p>
                 <p class="footer-links">
                     <a href="#" onclick="showPrivacyPolicy()">Chính sách bảo mật</a> |

@@ -16,7 +16,9 @@ def update_silver_data():
     print("=" * 60)
     
     # Đường dẫn file
-    base_dir = os.path.dirname(os.path.abspath(__file__))
+    # Was: base_dir = os.path.dirname(os.path.abspath(__file__)) (root)
+    # Now: file is in src/, so base_dir needs to be root
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     data_path = os.path.join(base_dir, 'dataset', 'silver_price.csv')
     backup_path = os.path.join(base_dir, 'dataset', 'silver_price_backup.csv')
     
@@ -104,7 +106,8 @@ def retrain_model():
     
     # Chạy train.py
     python_path = sys.executable
-    train_script = os.path.join(os.path.dirname(__file__), 'src', 'train.py')
+    # train.py is in the same directory (src)
+    train_script = os.path.join(os.path.dirname(__file__), 'train.py')
     
     print(f"\n🚀 Đang train model...")
     print(f"   Python: {python_path}")

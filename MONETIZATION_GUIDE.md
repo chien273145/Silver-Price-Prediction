@@ -28,6 +28,19 @@ Tôi đã thêm sẵn code vào `index.html`. Bạn chỉ cần:
 2. Tìm `G-XXXXXXXXXX` và thay bằng Measurement ID của bạn
 3. Push lên GitHub
 
+> [!IMPORTANT]
+> **⚠️ Lời Khuyên Về Tên Miền (Domain)**
+> 
+> Hiện tại bạn đang dùng tên miền miễn phí `onrender.com`. Google AdSense **rất khó duyệt** cho các subdomain miễn phí này vì độ uy tín chưa cao.
+> 
+> **Lời khuyên chân thành:** Để kiếm tiền lâu dài và được duyệt nhanh, bạn nên đầu tư mua một **Tên Miền Riêng (Custom Domain)**.
+> - **Chi phí:** Khoảng 250k - 350k VND/năm (cho đuôi .com hoặc .net).
+> - **Lợi ích:**
+>   1. Tỉ lệ duyệt AdSense cao hơn 90%.
+>   2. Web nhìn chuyên nghiệp, user tin tưởng hơn.
+>   3. SEO lên top Google dễ hơn nhiều.
+> - **Cách làm:** Mua tên miền (tại Tenten, Matbao, Namecheap...) -> Cấu hình trỏ về Render (Miễn phí).
+
 ---
 
 ## Bước 2: Google Search Console (10 phút)
