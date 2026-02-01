@@ -28,42 +28,69 @@ predictor: Optional[EnhancedPredictor] = None
 data_fetcher: Optional[RealTimeDataFetcher] = None
 
 
+import asyncio
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize and cleanup resources."""
     global predictor, data_fetcher
     
-    print("🚀 Starting Silver Price Prediction API...")
+    print("🚀 Starting Silver Price Prediction API...", flush=True)
+    start_time = datetime.now()
     
-    # Initialize predictor - try Enhanced first, fallback to Unified
-    try:
-        predictor = EnhancedPredictor()
-        predictor.load_data()
-        predictor.create_features()
-        predictor.load_model()
-        print("✓ Enhanced Ridge model loaded (R²=0.9649, MAPE=3.27%, 27 PCA components)")
-    except Exception as e:
-        print(f"⚠️ Could not load Enhanced model: {e}")
-        print("   Trying to fallback to UnifiedPredictor...")
-        try:
-            from src.unified_predictor import UnifiedPredictor
-            predictor = UnifiedPredictor()
-            predictor._load_data()
-            predictor._create_ridge_features()
-            predictor.load_ridge_model()
-            print("✓ Fallback: UnifiedPredictor loaded successfully")
-        except Exception as e2:
-            print(f"❌ Both predictors failed: {e2}")
-            predictor = None
-    
-    # Initialize data fetcher
+    # Initialize data fetcher immediately (lightweight)
+    print(f"[{datetime.now().time()}] Initializing RealTimeDataFetcher...", flush=True)
     data_fetcher = RealTimeDataFetcher(cache_duration_minutes=5)
-    print("✓ Real-time data fetcher initialized")
+    print(f"[{datetime.now().time()}] ✓ Real-time data fetcher initialized", flush=True)
+    
+    # Start model loading in background
+    asyncio.create_task(load_model_background())
+    
+    elapsed = (datetime.now() - start_time).total_seconds()
+    print(f"[{datetime.now().time()}] ✅ App startup complete in {elapsed:.2f}s (Model loading in background)", flush=True)
     
     yield
     
     # Cleanup
-    print("👋 Shutting down API...")
+    print("👋 Shutting down API...", flush=True)
+
+async def load_model_background():
+    """Load model in background to not block startup."""
+    global predictor
+    
+    print(f"[{datetime.now().time()}] ⏳ Background: Starting model loading...", flush=True)
+    
+    try:
+        # Run heavy lifting in thread pool
+        predictor = await asyncio.to_thread(_load_model_logic)
+        print(f"[{datetime.now().time()}] ✅ Background: Model loaded successfully!", flush=True)
+    except Exception as e:
+        print(f"[{datetime.now().time()}] ❌ Background: Model loading failed: {e}", flush=True)
+
+def _load_model_logic():
+    """Synchronous model loading logic."""
+    try:
+        print("   Attempting to load EnhancedPredictor...", flush=True)
+        p = EnhancedPredictor()
+        p.load_data()
+        p.create_features()
+        p.load_model()
+        print("   ✓ Enhanced Ridge model loaded", flush=True)
+        return p
+    except Exception as e:
+        print(f"   ⚠️ Enhanced model failed: {e}", flush=True)
+        print("   Fallback to UnifiedPredictor...", flush=True)
+        try:
+            from src.unified_predictor import UnifiedPredictor
+            p = UnifiedPredictor()
+            p._load_data()
+            p._create_ridge_features()
+            p.load_ridge_model()
+            print("   ✓ UnifiedPredictor loaded", flush=True)
+            return p
+        except Exception as e2:
+            print(f"   ❌ Fallback failed: {e2}", flush=True)
+            return None
 
 
 # Create FastAPI app
@@ -158,12 +185,21 @@ async def predict(
     - **currency**: VND hoặc USD
     - **exchange_rate**: Tỷ giá USD/VND tùy chỉnh (mặc định lấy từ API)
     """
+
     global predictor, data_fetcher
     
+    # Wait for model if loading (up to 5s)
+    if predictor is None:
+        import asyncio
+        for _ in range(10): # 10 * 0.5s = 5s
+            if predictor is not None:
+                break
+            await asyncio.sleep(0.5)
+            
     if predictor is None:
         raise HTTPException(
             status_code=503,
-            detail="Model not loaded. Please train the model first using: python src/train.py"
+            detail="Model is currently loading or failed to load. Please try again in a few seconds."
         )
     
     try:
@@ -508,8 +544,14 @@ async def health_check():
     """Health check endpoint."""
     global predictor, data_fetcher
     
+    model_status = "loading" if predictor is None else "ready"
+    
+    # If app has been running for > 5 minutes and model is still None, it's an error
+    # But for health check purposes (Keep Alive), we always return healthy to Render doesn't kill us
+    
     return {
-        "status": "healthy",
+        "status": "healthy", # Always return healthy for Render
+        "model_status": model_status,
         "timestamp": datetime.now().isoformat(),
         "components": {
             "model_loaded": predictor is not None,
