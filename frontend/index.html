@@ -93,6 +93,9 @@
                                 d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
                         </svg>
                     </button>
+                    <button class="calc-btn" onclick="showCalculator()" title="Tính lãi/lỗ">
+                        🧮
+                    </button>
                 </div>
             </div>
         </header>
@@ -137,6 +140,17 @@
                         <span class="change-value">--</span>
                         <span class="change-percent">--</span>
                     </div>
+                </div>
+
+                <div class="card price-card sentiment-card">
+                    <div class="card-header">
+                        <span class="card-label">Tâm lý thị trường</span>
+                    </div>
+                    <div style="height: 100px; position: relative; margin-top: 10px;">
+                        <canvas id="sentimentGauge"></canvas>
+                        <div class="gauge-value" id="sentimentValue">--</div>
+                    </div>
+                    <div class="sentiment-text" id="sentimentText">Đang phân tích...</div>
                 </div>
 
                 <div class="card price-card stats-card">
@@ -312,26 +326,31 @@
                 <div class="card info-card">
                     <div class="card-header">
                         <span class="card-label">Kiến Thức</span>
-                        <h3>📈 Các Yếu Tố Ảnh Hưởng Giá</h3>
+                        <div class="card-header">
+                            <span class="card-label">Kiến Thức</span>
+                            <h3>📈 Các Yếu Tố Ảnh Hưởng (Hôm nay)</h3>
+                        </div>
+                        <div class="info-content" id="marketFactors">
+                            <div class="factor-item">
+                                <h4>1. Lãi Suất FED</h4>
+                                <p>Khi Cục Dự trữ Liên bang Mỹ (FED) tăng lãi suất, đồng USD mạnh lên, khiến giá
+                                    vàng/bạc
+                                    thường giảm vì chúng được định giá bằng USD.</p>
+                            </div>
+                            <div class="factor-item">
+                                <h4>2. Lạm Phát</h4>
+                                <p>Vàng và bạc được coi là "nơi trú ẩn an toàn" chống lại lạm phát. Khi lạm phát tăng
+                                    cao,
+                                    nhu cầu mua kim loại quý thường tăng vọt.</p>
+                            </div>
+                            <div class="factor-item">
+                                <h4>3. Cung và Cầu</h4>
+                                <p>Sự gián đoạn chuỗi cung ứng (ví dụ: đình công mỏ vàng) hoặc nhu cầu công nghiệp (đặc
+                                    biệt
+                                    là bạc trong pin mặt trời/chip điện tử) tác động mạnh đến giá.</p>
+                            </div>
+                        </div>
                     </div>
-                    <div class="info-content">
-                        <div class="factor-item">
-                            <h4>1. Lãi Suất FED</h4>
-                            <p>Khi Cục Dự trữ Liên bang Mỹ (FED) tăng lãi suất, đồng USD mạnh lên, khiến giá vàng/bạc
-                                thường giảm vì chúng được định giá bằng USD.</p>
-                        </div>
-                        <div class="factor-item">
-                            <h4>2. Lạm Phát</h4>
-                            <p>Vàng và bạc được coi là "nơi trú ẩn an toàn" chống lại lạm phát. Khi lạm phát tăng cao,
-                                nhu cầu mua kim loại quý thường tăng vọt.</p>
-                        </div>
-                        <div class="factor-item">
-                            <h4>3. Cung và Cầu</h4>
-                            <p>Sự gián đoạn chuỗi cung ứng (ví dụ: đình công mỏ vàng) hoặc nhu cầu công nghiệp (đặc biệt
-                                là bạc trong pin mặt trời/chip điện tử) tác động mạnh đến giá.</p>
-                        </div>
-                    </div>
-                </div>
             </section>
 
             <!-- FAQ Section -->
@@ -431,6 +450,54 @@
                 <p>Nếu bạn có bất kỳ câu hỏi nào, vui lòng liên hệ với chúng tôi qua email:</p>
                 <p class="contact-email">admin@dubaovangbac.com</p>
                 <p>Chúng tôi sẽ phản hồi trong vòng 24 giờ.</p>
+            </div>
+        </div>
+    </div>
+    </div>
+
+    <!-- Calculator Modal -->
+    <div id="calculatorModal" class="modal">
+        <div class="modal-content calc-modal-content">
+            <span class="close-modal" onclick="closeModal('calculatorModal')">&times;</span>
+            <h2>🧮 Tính Lãi/Lỗ Dự Kiến</h2>
+            <div class="calc-body">
+                <div class="form-group">
+                    <label>Loại tài sản</label>
+                    <select id="calcAsset" onchange="updateCalcAsset()">
+                        <option value="silver">Bạc</option>
+                        <option value="gold">Vàng</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Giá mua vào (VND)</label>
+                    <input type="number" id="calcBuyPrice" placeholder="Nhập giá bạn đã mua">
+                </div>
+                <div class="form-group">
+                    <label>Số lượng (Lượng)</label>
+                    <input type="number" id="calcAmount" value="1">
+                </div>
+
+                <div class="calc-results">
+                    <div class="calc-row">
+                        <span>Giá hiện tại:</span>
+                        <span id="calcCurrentPrice">--</span>
+                    </div>
+                    <div class="calc-row">
+                        <span>Lợi nhuận ngay:</span>
+                        <span id="calcProfitNow" class="calc-value">--</span>
+                    </div>
+                    <div class="divider"></div>
+                    <div class="calc-row">
+                        <span>Giá dự báo (Ngày mai):</span>
+                        <span id="calcPredPrice">--</span>
+                    </div>
+                    <div class="calc-row">
+                        <span>Lợi nhuận dự kiến:</span>
+                        <span id="calcProfitPred" class="calc-value">--</span>
+                    </div>
+                </div>
+
+                <p class="calc-note">⚠️ Đã trừ đi chênh lệch mua/bán thị trường (ước tính 2%)</p>
             </div>
         </div>
     </div>

@@ -398,6 +398,86 @@ class GoldPredictor:
             'metrics': self.metrics,
             'prediction_days': self.prediction_days
         }
+
+    def get_market_drivers(self) -> Dict:
+        """Get latest market drivers."""
+        if self.data is None:
+            return {}
+            
+        latest = self.data.iloc[-1]
+        prev = self.data.iloc[-2]
+        
+        # Helper
+        def get_val(col): return float(latest.get(col, 0))
+        def get_change(col):
+            if col not in latest or col not in prev: return 0.0
+            val_now = latest[col]
+            val_prev = prev[col]
+            if val_prev == 0: return 0.0
+            return float((val_now - val_prev) / val_prev * 100)
+            
+        # Features often used: dxy, oil, vix, us10y
+        drivers = {
+            'dxy': {'value': get_val('dxy'), 'change': get_change('dxy')},
+            'vix': {'value': get_val('vix'), 'change': get_change('vix')},
+            'oil': {'value': get_val('oil'), 'change': get_change('oil')},
+            'us10y': {'value': get_val('us10y'), 'change': get_change('us10y')},
+            'rsi': {'value': get_val('gold_rsi'), 'change': get_change('gold_rsi')},
+        }
+        
+        factors = []
+        
+        # Logic
+        if drivers['dxy']['change'] < -0.1:
+            factors.append(f"Đồng USD suy yếu ({drivers['dxy']['change']:.2f}%) hỗ trợ giá Vàng")
+        elif drivers['dxy']['change'] > 0.1:
+            factors.append(f"Đồng USD mạnh lên ({drivers['dxy']['change']:.2f}%) kìm hãm giá Vàng")
+            
+        if drivers['us10y']['change'] > 1.0:
+            factors.append(f"Lợi suất trái phiếu tăng ({drivers['us10y']['change']:.2f}%) gây áp lực giảm")
+            
+        if drivers['vix']['change'] > 3.0:
+            factors.append(f"Tâm lý bất ổn (VIX +{drivers['vix']['change']:.2f}%) kích thích mua Vàng trú ẩn")
+            
+        if drivers['rsi']['value'] > 75:
+            factors.append("RSI báo hiệu thị trường Quá Mua, rủi ro điều chỉnh")
+        elif drivers['rsi']['value'] < 25:
+             factors.append("RSI báo hiệu thị trường Quá Bán, cơ hội hồi phục")
+             
+        return {'factors': factors, 'raw': drivers}
+
+    def get_yesterday_accuracy(self) -> Dict:
+        """Simulate yesterday prediction."""
+        if self.data is None or len(self.data) < 10:
+            return None
+            
+        # Features at t-1
+        features_yesterday = self.data[self.feature_columns].iloc[-2].values.reshape(1, -1)
+        
+        # Scale & PCA
+        if self.scaler:
+            feat_scaled = self.scaler.transform(features_yesterday)
+            if self.pca:
+                feat_scaled = self.pca.transform(feat_scaled)
+        else:
+            feat_scaled = features_yesterday
+            
+        # Predict Day 1 using model[1]
+        pred_usd = self.models[1].predict(feat_scaled)[0]
+        
+        # Actual
+        actual_usd = self.data['price'].iloc[-1] # price is already USD/oz
+        
+        diff = abs(pred_usd - actual_usd)
+        error_pct = (diff / actual_usd) * 100
+        
+        return {
+            'predicted_usd': float(pred_usd),
+            'actual_usd': float(actual_usd),
+            'diff_usd': float(diff),
+            'accuracy': float(100 - error_pct),
+            'date': self.data['date'].iloc[-1].strftime('%Y-%m-%d')
+        }
     
     def set_exchange_rate(self, rate: float):
         """Set USD to VND exchange rate."""

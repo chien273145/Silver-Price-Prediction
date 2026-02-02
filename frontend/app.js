@@ -143,11 +143,36 @@ const elements = {
     newsList: document.getElementById('newsList'),
     refreshNewsBtn: document.getElementById('refreshNewsBtn'),
     accuracyBadge: document.getElementById('accuracyBadge'),
+    accuracyBadge: document.getElementById('accuracyBadge'),
     accuracyContent: document.getElementById('accuracyContent'),
+    // New Elements
+    sentimentValue: document.getElementById('sentimentValue'),
+    sentimentText: document.getElementById('sentimentText'),
+    marketFactors: document.getElementById('marketFactors'),
+    // Calculator
+    calcBuyPrice: document.getElementById('calcBuyPrice'),
+    calcAmount: document.getElementById('calcAmount'),
+    calcCurrentPrice: document.getElementById('calcCurrentPrice'),
+    calcPredPrice: document.getElementById('calcPredPrice'),
+    calcProfitNow: document.getElementById('calcProfitNow'),
+    calcProfitPred: document.getElementById('calcProfitPred'),
+    calcAsset: document.getElementById('calcAsset'),
     // Asset toggle elements
     logoIcon: document.getElementById('logoIcon'),
     appTitle: document.getElementById('appTitle'),
-    appSubtitle: document.getElementById('appSubtitle')
+    appSubtitle: document.getElementById('appSubtitle'),
+    // New Elements
+    sentimentValue: document.getElementById('sentimentValue'),
+    sentimentText: document.getElementById('sentimentText'),
+    marketFactors: document.getElementById('marketFactors'),
+    // Calculator
+    calcBuyPrice: document.getElementById('calcBuyPrice'),
+    calcAmount: document.getElementById('calcAmount'),
+    calcCurrentPrice: document.getElementById('calcCurrentPrice'),
+    calcPredPrice: document.getElementById('calcPredPrice'),
+    calcProfitNow: document.getElementById('calcProfitNow'),
+    calcProfitPred: document.getElementById('calcProfitPred'),
+    calcAsset: document.getElementById('calcAsset')
 };
 
 // Utility Functions
@@ -686,6 +711,30 @@ async function loadData() {
             updateDataStatus(dataStatus);
         }
 
+        // NEW UPDATES
+        if (predictions && predictions.market_drivers) {
+            updateMarketFactors(predictions.market_drivers);
+            updateSentiment(predictions.summary, predictions.market_drivers);
+        } else if (predictions && predictions.summary) {
+            updateSentiment(predictions.summary, null);
+        }
+
+        if (predictions && predictions.accuracy_check) {
+            updateAccuracy(predictions.accuracy_check);
+        }
+
+        // NEW UPDATES
+        if (predictions && predictions.market_drivers) {
+            updateMarketFactors(predictions.market_drivers);
+            updateSentiment(predictions.summary, predictions.market_drivers);
+        } else if (predictions && predictions.summary) {
+            updateSentiment(predictions.summary, null);
+        }
+
+        if (predictions && predictions.accuracy_check) {
+            updateAccuracy(predictions.accuracy_check);
+        }
+
         if (updated) {
             showToast('Dữ liệu đã được cập nhật', 'success');
         }
@@ -949,3 +998,223 @@ function showContact() {
         '📧 Email: support@silverprice.ai\n' +
         '🌐 Website: silver-price-prediction.onrender.com');
 }
+
+// ===== GAUGE CHART & SENTIMENT =====
+function initGauge() {
+    const ctx = document.getElementById('sentimentGauge').getContext('2d');
+
+    state.gaugeChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Tiêu cực', 'Trung tính', 'Tích cực'],
+            datasets: [{
+                data: [33, 33, 33],
+                backgroundColor: [
+                    '#ef4444', // Red (Fear)
+                    '#eab308', // Yellow (Neutral)
+                    '#22c55e'  // Green (Greed)
+                ],
+                borderWidth: 0,
+                circumference: 180,
+                rotation: 270,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '75%',
+            plugins: {
+                legend: { display: false },
+                tooltip: { enabled: false }
+            }
+        }
+    });
+}
+
+function updateSentiment(summary, drivers) {
+    if (!state.gaugeChart) initGauge();
+
+    let score = 50; // Neutral default
+    let text = "Chờ tín hiệu...";
+    let color = "#eab308";
+
+    // Logic based on Prediction Change
+    const changePct = summary.total_change_pct;
+
+    if (changePct > 0.5) {
+        score = 75; // Greed / Buy
+        text = "MUA MẠNH";
+        color = "#22c55e";
+    } else if (changePct < -0.5) {
+        score = 25; // Fear / Sell
+        text = "BÁN MẠNH";
+        color = "#ef4444";
+    } else {
+        score = 50;
+        text = "TRUNG LẬP";
+    }
+
+    // Adjust by RSI if available
+    let suffix = "";
+    if (drivers && drivers.raw && drivers.raw.rsi) {
+        const rsi = drivers.raw.rsi.value;
+        if (rsi > 70) {
+            suffix = " (Quá Mua)";
+            // If price predicted up but RSI overbought -> Caution
+        } else if (rsi < 30) {
+            suffix = " (Quá Bán)";
+        }
+    }
+
+    // Update Value Display
+    if (elements.sentimentValue) {
+        elements.sentimentValue.textContent = text;
+        elements.sentimentValue.style.color = color;
+    }
+    if (elements.sentimentText) {
+        elements.sentimentText.textContent = `Dự báo xu hướng ${summary.trend === 'up' ? 'Tăng' : 'Giảm'} ${Math.abs(changePct).toFixed(2)}%${suffix}`;
+    }
+
+    // Highlight chart section
+    const colors = ['#334155', '#334155', '#334155']; // Dimmed
+    if (score > 60) colors[2] = '#22c55e';
+    else if (score < 40) colors[0] = '#ef4444';
+    else colors[1] = '#eab308';
+
+    state.gaugeChart.data.datasets[0].backgroundColor = colors;
+    state.gaugeChart.update();
+}
+
+// ===== MARKET FACTORS =====
+function updateMarketFactors(drivers) {
+    if (!drivers || !drivers.factors || !elements.marketFactors) return;
+
+    let html = '';
+    drivers.factors.forEach(factor => {
+        html += `
+            <div class="factor-item dynamic">
+                <h4>🔔 Tín hiệu AI</h4>
+                <p>${factor}</p>
+            </div>
+        `;
+    });
+
+    // Add default static if empty
+    if (drivers.factors.length === 0) {
+        html = '<p style="color:#a0a0b0; padding:10px; font-style:italic">Chưa có tín hiệu nổi bật hôm nay.</p>';
+    }
+
+    // Append standard educational factors below
+    html += `
+        <div style="margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
+             <small style="color: #64748b; display: block; margin-bottom: 5px;">KIẾN THỨC CƠ BẢN:</small>
+             <div class="factor-item" style="opacity: 0.8">
+                <h4>Lãi Suất & USD</h4>
+                <p>Lãi suất FED tăng thường làm tăng giá trị USD, gây áp lực giảm lên giá vàng/bạc.</p>
+            </div>
+        </div>
+    `;
+
+    elements.marketFactors.innerHTML = html;
+}
+
+// ===== ACCURACY CHECK =====
+function updateAccuracy(check) {
+    if (!check || !elements.accuracyContent) return;
+
+    if (elements.accuracyBadge) {
+        elements.accuracyBadge.textContent = `${check.accuracy.toFixed(1)}%`;
+        elements.accuracyBadge.className = `accuracy-badge ${check.accuracy > 95 ? 'high' : 'med'}`;
+    }
+
+    elements.accuracyContent.innerHTML = `
+        <div class="acc-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.9em;">
+            <div style="color: #94a3b8;">Dự báo hôm qua:</div>
+            <div style="text-align: right; font-weight: 600;">${formatPrice(check.predicted_usd, 'USD')}</div>
+            
+            <div style="color: #94a3b8;">Thực tế hôm nay:</div>
+            <div style="text-align: right; font-weight: 600;">${formatPrice(check.actual_usd, 'USD')}</div>
+            
+            <div style="color: #94a3b8;">Sai số:</div>
+            <div style="text-align: right; color: ${check.diff_usd < 0.5 ? '#4ade80' : '#f87171'}">
+                ${check.diff_usd.toFixed(2)} USD
+            </div>
+        </div>
+        <p style="margin-top: 10px; font-size: 0.8em; color: #64748b; text-align: right;">
+            *So sánh giá đóng cửa USD/oz
+        </p>
+    `;
+}
+
+// ===== CALCULATOR =====
+function showCalculator() {
+    const modal = document.getElementById('calculatorModal');
+    if (modal) {
+        modal.style.display = 'block';
+        // Set default asset
+        if (elements.calcAsset) elements.calcAsset.value = state.asset;
+        updateCalc();
+    }
+}
+
+function updateCalcAsset() {
+    updateCalc();
+}
+
+// Calc logic
+function updateCalc() {
+    if (!elements.calcBuyPrice) return;
+
+    const asset = elements.calcAsset.value;
+    const buyPrice = parseFloat(elements.calcBuyPrice.value) || 0;
+    const amount = parseFloat(elements.calcAmount.value) || 1;
+
+    // Get current price from state
+    let currentPriceVND = 0;
+    let predPriceVND = 0;
+
+    // We assume state.predictions matches current asset. 
+    // If not (e.g. user toggled asset in modal but didn't reload main), we rely on loaded state.
+    // Ideally we should warn or fetch. For now, assume state tracks main UI asset.
+    if (state.predictions && state.predictions.last_known) {
+        if (asset === state.asset) {
+            currentPriceVND = state.predictions.last_known.price;
+            predPriceVND = state.predictions.predictions[0].price; // Tomorrow
+        } else {
+            // Fallback or 0
+        }
+    }
+
+    elements.calcCurrentPrice.textContent = currentPriceVND ? formatPrice(currentPriceVND) + ' VND' : '--';
+    elements.calcPredPrice.textContent = predPriceVND ? formatPrice(predPriceVND) + ' VND' : '--';
+
+    if (buyPrice > 0 && currentPriceVND > 0) {
+        // Fee 2% spread roughly
+        const spread = 0.02;
+
+        // Sell Now
+        const sellPriceNow = currentPriceVND * (1 - spread / 2); // Sell price is usually lower than Buy price (Mid)
+        // Actually usually "Current Price" displayed is Mid or Close.
+        // Let's assume standard 1-2% gap.
+
+        const profitAg = (sellPriceNow - buyPrice) * amount;
+
+        elements.calcProfitNow.textContent = formatPrice(profitAg) + ' VND';
+        elements.calcProfitNow.className = profitAg >= 0 ? 'calc-value positive' : 'calc-value negative';
+
+        // Sell Tomorrow
+        const sellPricePred = predPriceVND * (1 - spread / 2);
+        const profitPred = (sellPricePred - buyPrice) * amount;
+
+        elements.calcProfitPred.textContent = formatPrice(profitPred) + ' VND';
+        elements.calcProfitPred.className = profitPred >= 0 ? 'calc-value positive' : 'calc-value negative';
+    }
+}
+
+// Add event listeners for calc inputs
+if (elements.calcBuyPrice) {
+    elements.calcBuyPrice.addEventListener('input', updateCalc);
+    elements.calcAmount.addEventListener('input', updateCalc);
+}
+// GLOBAL MODAL HELPERS
+window.showCalculator = showCalculator;

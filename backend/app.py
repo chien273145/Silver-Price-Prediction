@@ -151,6 +151,8 @@ class PredictionResponse(BaseModel):
     last_known: dict
     predictions: list
     summary: dict
+    market_drivers: Optional[dict] = None
+    accuracy_check: Optional[dict] = None
 
 
 class HistoricalResponse(BaseModel):
@@ -274,7 +276,9 @@ async def predict(
             exchange_rate=result['exchange_rate'],
             last_known=result['last_known'],
             predictions=result['predictions'],
-            summary=result['summary']
+            summary=result['summary'],
+            market_drivers=predictor.get_market_drivers(),
+            accuracy_check=predictor.get_yesterday_accuracy()
         )
         
     except Exception as e:
@@ -421,6 +425,11 @@ async def gold_predict(
                     gold_predictor.set_exchange_rate(rate_data['rate'])
         
         result = gold_predictor.predict(in_vnd=(currency.upper() == "VND"))
+        
+        # Add extra info
+        result['market_drivers'] = gold_predictor.get_market_drivers()
+        result['accuracy_check'] = gold_predictor.get_yesterday_accuracy()
+        
         return result
         
     except Exception as e:

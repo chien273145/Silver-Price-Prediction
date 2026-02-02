@@ -486,6 +486,111 @@ class EnhancedPredictor:
             }
         }
     
+    def get_market_drivers(self) -> Dict:
+        """Get latest market drivers for Explainable AI."""
+        if self.data is None:
+            return {}
+            
+        latest = self.data.iloc[-1]
+        prev = self.data.iloc[-2]
+        
+        # Calculate changes
+        result = {}
+        
+        # Helper to safely get value
+        def get_val(col): 
+            return float(latest.get(col, 0))
+            
+        def get_change(col):
+            if col not in latest or col not in prev: return 0.0
+            val_now = latest[col]
+            val_prev = prev[col]
+            if val_prev == 0: return 0.0
+            return float((val_now - val_prev) / val_prev * 100)
+            
+        # Extract features
+        drivers = {
+            'dxy': {'value': get_val('DXY'), 'change': get_change('DXY')},
+            'vix': {'value': get_val('VIX'), 'change': get_change('VIX')},
+            'gold': {'value': get_val('Gold'), 'change': get_change('Gold')},
+            'rsi': {'value': get_val('rsi'), 'change': get_change('rsi')},
+            'macd': {'value': get_val('macd'), 'change': get_change('macd')},
+        }
+        
+        # Determine dominant factors causing movement
+        factors = []
+        
+        # Logic for "Why?"
+        # DXY inverse to Silver
+        if drivers['dxy']['change'] < -0.1:
+            factors.append(f"Đồng USD suy yếu ({drivers['dxy']['change']:.2f}%) hỗ trợ đà tăng")
+        elif drivers['dxy']['change'] > 0.1:
+            factors.append(f"Đồng USD mạnh lên ({drivers['dxy']['change']:.2f}%) gây áp lực giảm")
+            
+        # VIX
+        if drivers['vix']['change'] > 3.0:
+            factors.append(f"Tâm lý lo ngại thị trường tăng cao (VIX +{drivers['vix']['change']:.2f}%)")
+        
+        # Gold correlation
+        if abs(drivers['gold']['change']) > 0.5:
+             direction = "tăng" if drivers['gold']['change'] > 0 else "giảm"
+             factors.append(f"Giá Vàng {direction} mạnh ({drivers['gold']['change']:.2f}%) kéo theo Bạc")
+             
+        # Technicals
+        if drivers['rsi']['value'] > 70:
+            factors.append("Chỉ báo RSI vào vùng Quá Mua (Overbought), có thể điều chỉnh giảm")
+        elif drivers['rsi']['value'] < 30:
+            factors.append("Chỉ báo RSI vào vùng Quá Bán (Oversold), có thể phục hồi")
+            
+        result['factors'] = factors
+        result['raw'] = drivers
+        
+        return result
+
+    def get_yesterday_accuracy(self) -> Dict:
+        """
+        Simulate yesterday's prediction to check accuracy.
+        Uses data up to t-1 to predict t.
+        """
+        if self.data is None or len(self.data) < 10:
+            return None
+            
+        # Data at t-1 (Yesterday)
+        features_yesterday = self.data[self.feature_columns].iloc[-2].values.reshape(1, -1)
+        
+        # Scale
+        if self.scaler:
+            feat_scaled = self.scaler.transform(features_yesterday)
+            if self.pca:
+                feat_scaled = self.pca.transform(feat_scaled)
+        
+        # Predict Day 1 (Next Day) using model 0 (Day 1 model)
+        preds_all_days = []
+        for model in self.models:
+            p = model.predict(feat_scaled)
+            preds_all_days.append(p[0])
+            
+        preds_all_days = np.array(preds_all_days).reshape(1, -1)
+        preds_usd = self.target_scaler.inverse_transform(preds_all_days)[0]
+        
+        pred_day_1_usd = preds_usd[0]
+        
+        # Actual price Today (-1)
+        actual_price_usd = self.data['price'].iloc[-1]
+        
+        # Calculate Error
+        diff = abs(pred_day_1_usd - actual_price_usd)
+        error_pct = (diff / actual_price_usd) * 100
+        accuracy = 100 - error_pct
+        
+        return {
+            'predicted_usd': float(pred_day_1_usd),
+            'actual_usd': float(actual_price_usd),
+            'diff_usd': float(diff),
+            'accuracy': float(accuracy),
+            'date': self.data['date'].iloc[-1].strftime('%Y-%m-%d')
+        }
+    
     def set_exchange_rate(self, rate: float):
         """Set USD to VND exchange rate."""
         self.usd_vnd_rate = rate
