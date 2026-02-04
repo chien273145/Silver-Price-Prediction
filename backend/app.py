@@ -6,6 +6,7 @@ Uses Ridge Regression model (primary) or LSTM (fallback).
 
 import os
 import sys
+import numpy as np
 from datetime import datetime
 from typing import Optional
 from contextlib import asynccontextmanager
@@ -22,6 +23,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.enhanced_predictor import EnhancedPredictor
 from src.gold_predictor import GoldPredictor
 from backend.realtime_data import RealTimeDataFetcher
+from src.scrapers.service import get_price_service
 
 
 # Global instances
@@ -50,7 +52,7 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(load_gold_model_background())
     
     elapsed = (datetime.now() - start_time).total_seconds()
-    print(f"[{datetime.now().time()}] ✅ App startup complete in {elapsed:.2f}s (Model loading in background)", flush=True)
+    print(f"[{datetime.now().time()}] [OK] App startup complete in {elapsed:.2f}s (Model loading in background)", flush=True)
     
     yield
     
@@ -61,7 +63,7 @@ async def load_model_background():
     """Load model in background to not block startup."""
     global predictor
     
-    print(f"[{datetime.now().time()}] ⏳ Background: Starting model loading...", flush=True)
+    print(f"[{datetime.now().time()}] [LOADING] Background: Starting model loading...", flush=True)
     
     try:
         # Run heavy lifting in thread pool
@@ -702,6 +704,156 @@ async def get_data_status():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/fear-greed")
+async def get_fear_greed_index():
+    """
+    Calculate Fear & Greed Index based on market data and AI predictions.
+    Returns score 0-100 and recommendation signal.
+    """
+    global predictor, data_fetcher
+    
+    try:
+        if predictor is None:
+            return {
+                "success": False,
+                "message": "Model not loaded"
+            }
+        
+        # Get market drivers and current predictions
+        market_drivers = predictor.get_market_drivers()
+        
+        # Get current prediction to analyze trend
+        result = predictor.predict(in_vnd=True)
+        predictions = result['predictions']
+        
+        # Calculate Fear & Greed score (0-100)
+        fear_greed_score = 50  # Neutral start
+        
+        # Factor 1: Market drivers (40% weight)
+        drivers_score = 50
+        if 'raw' in market_drivers:
+            raw = market_drivers['raw']
+            
+            # VIX component (higher VIX = more fear)
+            if 'vix' in raw and raw['vix']['value'] > 0:
+                vix = raw['vix']['value']
+                if vix > 30:
+                    drivers_score -= 15  # High fear
+                elif vix > 25:
+                    drivers_score -= 10
+                elif vix < 15:
+                    drivers_score += 15  # High greed
+                elif vix < 20:
+                    drivers_score += 10
+            
+            # DXY component (weaker USD = more greed for metals)
+            if 'dxy' in raw and raw['dxy']['change'] != 0:
+                dxy_change = raw['dxy']['change']
+                if dxy_change < -1.0:
+                    drivers_score += 15  # USD weak = metal greed
+                elif dxy_change < -0.5:
+                    drivers_score += 10
+                elif dxy_change > 1.0:
+                    drivers_score -= 15  # USD strong = metal fear
+                elif dxy_change > 0.5:
+                    drivers_score -= 10
+            
+            # RSI component
+            if 'rsi' in raw and raw['rsi']['value'] > 0:
+                rsi = raw['rsi']['value']
+                if rsi > 75:
+                    drivers_score += 12  # Overbought = greed
+                elif rsi > 70:
+                    drivers_score += 8
+                elif rsi < 25:
+                    drivers_score -= 12  # Oversold = fear
+                elif rsi < 30:
+                    drivers_score -= 8
+        
+        # Factor 2: Prediction trend (30% weight)
+        trend_score = 50
+        if len(predictions) >= 3:
+            day1 = predictions[0]['price']
+            day3 = predictions[2]['price']
+            day7 = predictions[-1]['price']
+            
+            # Analyze trend strength
+            day1_change = ((day1 - result['last_known']['price']) / result['last_known']['price']) * 100
+            day7_change = ((day7 - result['last_known']['price']) / result['last_known']['price']) * 100
+            
+            if day1_change > 1.0 and day7_change > 2.0:
+                trend_score = 75  # Strong bullish = greed
+            elif day1_change > 0.5 and day7_change > 1.0:
+                trend_score = 65  # Moderate bullish
+            elif day1_change < -1.0 and day7_change < -2.0:
+                trend_score = 25  # Strong bearish = fear
+            elif day1_change < -0.5 and day7_change < -1.0:
+                trend_score = 35  # Moderate bearish
+        
+        # Factor 3: Volatility (30% weight)
+        volatility_score = 50
+        if hasattr(predictor, 'data') and predictor.data is not None:
+            recent_prices = predictor.data['price'].tail(14).values if 'price' in predictor.data.columns else []
+            if len(recent_prices) > 1:
+                volatility = np.std(recent_prices) / np.mean(recent_prices) * 100
+                if volatility > 3.0:
+                    volatility_score = 30  # High volatility = fear
+                elif volatility > 2.0:
+                    volatility_score = 40
+                elif volatility < 1.0:
+                    volatility_score = 70  # Low volatility = greed
+                elif volatility < 1.5:
+                    volatility_score = 60
+        
+        # Calculate final score (weighted average)
+        fear_greed_score = (drivers_score * 0.4 + trend_score * 0.3 + volatility_score * 0.3)
+        fear_greed_score = max(0, min(100, fear_greed_score))  # Clamp to 0-100
+        
+        # Generate recommendation
+        if fear_greed_score >= 75:
+            signal = "EXTREME GREED"
+            recommendation = "Sell Signal - Market Overbought"
+            color = "#e74c3c"  # Red
+        elif fear_greed_score >= 60:
+            signal = "GREED"
+            recommendation = "Consider Taking Profits"
+            color = "#f39c12"  # Orange
+        elif fear_greed_score >= 45:
+            signal = "NEUTRAL"
+            recommendation = "Wait & Watch Market"
+            color = "#f1c40f"  # Yellow
+        elif fear_greed_score >= 25:
+            signal = "FEAR"
+            recommendation = "Buying Opportunity"
+            color = "#27ae60"  # Green
+        else:
+            signal = "EXTREME FEAR"
+            recommendation = "Strong Buy Signal"
+            color = "#2980b9"  # Blue
+        
+        return {
+            "success": True,
+            "index": {
+                "score": round(fear_greed_score, 1),
+                "signal": signal,
+                "recommendation": recommendation,
+                "color": color,
+                "components": {
+                    "market_drivers": round(drivers_score, 1),
+                    "prediction_trend": round(trend_score, 1),
+                    "volatility": round(volatility_score, 1)
+                },
+                "timestamp": datetime.now().isoformat()
+            }
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Error calculating Fear & Greed: {str(e)}"
+        }
+
+
 @app.get("/api/health")
 async def health_check():
     """Health check endpoint."""
@@ -802,6 +954,120 @@ async def get_market_news():
         "news": news_items[:10],  # Limit to 10 items
         "timestamp": datetime.now().isoformat()
     }
+
+
+@app.get("/api/performance-transparency")
+async def get_performance_transparency():
+    """
+    Enhanced performance transparency with detailed backtesting metrics.
+    Shows yesterday's forecast vs today's actual with accuracy metrics.
+    """
+    global predictor
+    
+    try:
+        if predictor is None:
+            return {
+                "success": False,
+                "message": "Model not loaded"
+            }
+        
+        # Get yesterday's prediction accuracy
+        accuracy_check = predictor.get_yesterday_accuracy()
+        
+        if accuracy_check is None:
+            return {
+                "success": False,
+                "message": "Insufficient data for accuracy calculation"
+            }
+        
+        # Calculate additional metrics
+        predicted = accuracy_check['predicted_usd']
+        actual = accuracy_check['actual_usd']
+        diff = accuracy_check['diff_usd']
+        accuracy = accuracy_check['accuracy']
+        
+        # Convert to VND for display
+        vnd_conversion = predictor.usd_vnd_rate * predictor.troy_ounce_to_luong * predictor.vietnam_premium
+        predicted_vnd = predicted * vnd_conversion
+        actual_vnd = actual * vnd_conversion
+        diff_vnd = diff * vnd_conversion
+        
+        # Determine performance grade
+        if accuracy >= 95:
+            grade = "A+"
+            grade_color = "#27ae60"
+            comment = "Excellent prediction accuracy"
+        elif accuracy >= 90:
+            grade = "A"
+            grade_color = "#27ae60"
+            comment = "Very good prediction"
+        elif accuracy >= 85:
+            grade = "B+"
+            grade_color = "#f39c12"
+            comment = "Good prediction accuracy"
+        elif accuracy >= 80:
+            grade = "B"
+            grade_color = "#f39c12"
+            comment = "Acceptable prediction"
+        elif accuracy >= 70:
+            grade = "C"
+            grade_color = "#e67e22"
+            comment = "Fair prediction accuracy"
+        else:
+            grade = "D"
+            grade_color = "#e74c3c"
+            comment = "Poor prediction accuracy"
+        
+        # Direction accuracy (up/down correctly predicted)
+        direction_correct = None
+        if hasattr(predictor, 'data') and predictor.data is not None and len(predictor.data) >= 3:
+            prices = predictor.data['price'].tail(3).values if 'price' in predictor.data.columns else []
+            if len(prices) >= 3:
+                # Predicted direction (up if predicted > previous day)
+                prev_actual = prices[-2]
+                actual_today = prices[-1]
+                
+                predicted_direction = "up" if predicted > prev_actual else "down"
+                actual_direction = "up" if actual_today > prev_actual else "down"
+                
+                direction_correct = predicted_direction == actual_direction
+        
+        return {
+            "success": True,
+            "performance": {
+                "date": accuracy_check['date'],
+                "forecast": {
+                    "usd": round(predicted, 2),
+                    "vnd": round(predicted_vnd, 0),
+                    "direction": "up" if predicted > actual - diff else "down"
+                },
+                "actual": {
+                    "usd": round(actual, 2),
+                    "vnd": round(actual_vnd, 0),
+                    "direction": "up" if len(predictor.data) > 1 and actual > predictor.data['price'].iloc[-2] else "down"
+                },
+                "difference": {
+                    "usd": round(diff, 2),
+                    "vnd": round(diff_vnd, 0),
+                    "percentage": round((diff / actual) * 100, 2)
+                },
+                "accuracy": {
+                    "overall": round(accuracy, 1),
+                    "grade": grade,
+                    "grade_color": grade_color,
+                    "comment": comment,
+                    "direction_correct": direction_correct
+                },
+                "model_confidence": "High" if accuracy >= 85 else "Medium" if accuracy >= 75 else "Low"
+            },
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Error calculating performance: {str(e)}"
+        }
 
 
 @app.get("/api/accuracy")
@@ -978,3 +1244,10 @@ if __name__ == "__main__":
         port=8000,
         reload=True
     )
+
+# ======= API FOR LOCAL PRICES =======
+@app.get('/api/prices/local')
+async def get_local_prices():
+    service = get_price_service()
+    data = await service.fetch_all()
+    return {'success': True, 'data': data}

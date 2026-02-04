@@ -42,7 +42,8 @@
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap"
         rel="stylesheet">
 
     <!-- Chart.js -->
@@ -55,7 +56,7 @@
     <link rel="canonical" href="https://silver-price-prediction.onrender.com/">
 
     <!-- Styles -->
-    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="stylesheet" href="/static/styles.css?v=2.1.0">
 </head>
 
 <body>
@@ -111,6 +112,97 @@
 
         <!-- Main Content -->
         <main class="main">
+            <!-- Local Price Table (New) -->
+            <section class="local-prices-section" style="margin-bottom: 2rem;">
+                <div class="card table-card">
+                    <div class="card-header">
+                        <span class="card-label" id="localPriceHeader">🇻🇳 Bảng Giá Vàng Trong Nước (SJC, DOJI,
+                            PNJ)</span>
+                        <div class="header-badges">
+                            <span class="badge" id="localPriceTime">Cập nhật: --:--</span>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="prediction-table local-price-table">
+                            <thead>
+                                <tr>
+                                    <th>Thương hiệu</th>
+                                    <th>Sản phẩm</th>
+                                    <th>Mua vào</th>
+                                    <th>Bán ra</th>
+                                    <th>Chênh lệch</th>
+                                </tr>
+                            </thead>
+                            <tbody id="localPriceTableBody">
+                                <tr>
+                                    <td colspan="5" class="loading-cell">Đang tải dữ liệu thực tế...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Portfolio Section (New) -->
+            <section class="portfolio-section" id="portfolioSection" style="margin-bottom: 2rem;">
+                <div class="card portfolio-card">
+                    <div class="card-header">
+                        <span class="card-label">📒 Sổ Tài Sản (Portfolio)</span>
+                        <button class="add-tx-btn" onclick="showAddTransaction()">
+                            + Thêm Giao Dịch
+                        </button>
+                    </div>
+
+                    <!-- Portfolio Summary -->
+                    <div class="portfolio-summary-grid">
+                        <div class="p-summary-item">
+                            <span class="p-label">Tổng Vốn Đầu Tư</span>
+                            <span class="p-value" id="pTotalInvested">0 ₫</span>
+                        </div>
+                        <div class="p-summary-item">
+                            <span class="p-label">Giá Trị Hiện Tại</span>
+                            <span class="p-value" id="pCurrentValue">0 ₫</span>
+                        </div>
+                        <div class="p-summary-item">
+                            <span class="p-label">Lợi Nhuận (P/L)</span>
+                            <span class="p-value" id="pProfitLoss">0 ₫</span>
+                            <span class="p-percent" id="pProfitPercent">(0.00%)</span>
+                        </div>
+                    </div>
+
+                    <!-- Filter Tabs -->
+                    <div class="portfolio-tabs">
+                        <button class="p-tab active" data-filter="all">Tất cả</button>
+                        <button class="p-tab" data-filter="gold">Vàng</button>
+                        <button class="p-tab" data-filter="silver">Bạc</button>
+                    </div>
+
+                    <!-- Transaction List -->
+                    <div class="table-responsive">
+                        <table class="prediction-table portfolio-table">
+                            <thead>
+                                <tr>
+                                    <th>Ngày</th>
+                                    <th>Loại</th>
+                                    <th>Thương hiệu</th>
+                                    <th>Khối lượng</th>
+                                    <th>Giá vốn</th>
+                                    <th>Giá hiện tại</th>
+                                    <th>P/L</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="portfolioTableBody">
+                                <!-- JS will populate this -->
+                                <tr>
+                                    <td colspan="8" class="empty-cell">Chưa có giao dịch nào. Hãy thêm giao dịch đầu
+                                        tiên!</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
             <!-- Price Cards -->
             <section class="price-cards">
                 <div class="card price-card current-price">
@@ -326,31 +418,29 @@
                 <div class="card info-card">
                     <div class="card-header">
                         <span class="card-label">Kiến Thức</span>
-                        <div class="card-header">
-                            <span class="card-label">Kiến Thức</span>
-                            <h3>📈 Các Yếu Tố Ảnh Hưởng (Hôm nay)</h3>
+                        <h3>📚 Kiến Thức Cơ Bản</h3>
+                    </div>
+                    <div class="info-content" id="marketFactors">
+                        <div class="factor-item">
+                            <h4>1. Lãi Suất FED</h4>
+                            <p>Khi Cục Dự trữ Liên bang Mỹ (FED) tăng lãi suất, đồng USD mạnh lên, khiến giá
+                                vàng/bạc
+                                thường giảm vì chúng được định giá bằng USD.</p>
                         </div>
-                        <div class="info-content" id="marketFactors">
-                            <div class="factor-item">
-                                <h4>1. Lãi Suất FED</h4>
-                                <p>Khi Cục Dự trữ Liên bang Mỹ (FED) tăng lãi suất, đồng USD mạnh lên, khiến giá
-                                    vàng/bạc
-                                    thường giảm vì chúng được định giá bằng USD.</p>
-                            </div>
-                            <div class="factor-item">
-                                <h4>2. Lạm Phát</h4>
-                                <p>Vàng và bạc được coi là "nơi trú ẩn an toàn" chống lại lạm phát. Khi lạm phát tăng
-                                    cao,
-                                    nhu cầu mua kim loại quý thường tăng vọt.</p>
-                            </div>
-                            <div class="factor-item">
-                                <h4>3. Cung và Cầu</h4>
-                                <p>Sự gián đoạn chuỗi cung ứng (ví dụ: đình công mỏ vàng) hoặc nhu cầu công nghiệp (đặc
-                                    biệt
-                                    là bạc trong pin mặt trời/chip điện tử) tác động mạnh đến giá.</p>
-                            </div>
+                        <div class="factor-item">
+                            <h4>2. Lạm Phát</h4>
+                            <p>Vàng và bạc được coi là "nơi trú ẩn an toàn" chống lại lạm phát. Khi lạm phát tăng
+                                cao,
+                                nhu cầu mua kim loại quý thường tăng vọt.</p>
+                        </div>
+                        <div class="factor-item">
+                            <h4>3. Cung và Cầu</h4>
+                            <p>Sự gián đoạn chuỗi cung ứng (ví dụ: đình công mỏ vàng) hoặc nhu cầu công nghiệp (đặc
+                                biệt
+                                là bạc trong pin mặt trời/chip điện tử) tác động mạnh đến giá.</p>
                         </div>
                     </div>
+                </div>
             </section>
 
             <!-- FAQ Section -->
@@ -464,46 +554,81 @@
                 <div class="form-group">
                     <label>Loại tài sản</label>
                     <select id="calcAsset" onchange="updateCalcAsset()">
-                        <option value="silver">Bạc</option>
-                        <option value="gold">Vàng</option>
+                        <option value="silver">🥈 Bạc</option>
+                        <option value="gold">🥇 Vàng</option>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>Giá mua vào (VND)</label>
+                    <label>Giá mua vào (VND/luồng)</label>
                     <input type="number" id="calcBuyPrice" placeholder="Nhập giá bạn đã mua">
                 </div>
                 <div class="form-group">
                     <label>Số lượng (Lượng)</label>
-                    <input type="number" id="calcAmount" value="1">
+                    <input type="number" id="calcAmount" value="1" min="0.1" step="0.1">
                 </div>
 
                 <div class="calc-results">
-                    <div class="calc-row">
-                        <span>Giá hiện tại:</span>
-                        <span id="calcCurrentPrice">--</span>
+                    <div class="calc-section">
+                        <h4>💰 Thực Tế Hiện Tại</h4>
+                        <div class="calc-row">
+                            <span>Giá hiện tại:</span>
+                            <span id="calcCurrentPrice">--</span>
+                        </div>
+                        <div class="calc-row">
+                            <span>Lãi/Lỗ ngay:</span>
+                            <span id="calcProfitNow" class="calc-value">--</span>
+                        </div>
+                        <div class="calc-row">
+                            <span>Tỷ suất lãi/lỗ:</span>
+                            <span id="calcProfitNowPercent" class="calc-value">--</span>
+                        </div>
                     </div>
-                    <div class="calc-row">
-                        <span>Lợi nhuận ngay:</span>
-                        <span id="calcProfitNow" class="calc-value">--</span>
-                    </div>
+
                     <div class="divider"></div>
-                    <div class="calc-row">
-                        <span>Giá dự báo (Ngày mai):</span>
-                        <span id="calcPredPrice">--</span>
+
+                    <div class="calc-section">
+                        <h4>📈 Dự Báo 7 Ngày</h4>
+                        <div class="calc-row">
+                            <span>Giá dự báo (Day 7):</span>
+                            <span id="calcPredPrice">--</span>
+                        </div>
+                        <div class="calc-row">
+                            <span>Lãi/Lỗ dự kiến:</span>
+                            <span id="calcProfitPred" class="calc-value">--</span>
+                        </div>
+                        <div class="calc-row">
+                            <span>Tỷ suất dự kiến:</span>
+                            <span id="calcProfitPredPercent" class="calc-value">--</span>
+                        </div>
                     </div>
-                    <div class="calc-row">
-                        <span>Lợi nhuận dự kiến:</span>
-                        <span id="calcProfitPred" class="calc-value">--</span>
+
+                    <div class="calc-scenarios">
+                        <h4>🎯 Các Kịch Bản</h4>
+                        <div class="scenario-grid">
+                            <div class="scenario-item">
+                                <span class="scenario-label">Tốt (Best Case +10%):</span>
+                                <span id="calcBestCase" class="scenario-value positive">--</span>
+                            </div>
+                            <div class="scenario-item">
+                                <span class="scenario-label">Xấu (Worst Case -10%):</span>
+                                <span id="calcWorstCase" class="scenario-value negative">--</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <p class="calc-note">⚠️ Đã trừ đi chênh lệch mua/bán thị trường (ước tính 2%)</p>
+                <div class="calc-notes">
+                    <p class="calc-note">⚠️ Đã tính chênh lệch mua/bán thị trường (~2%)</p>
+                    <p class="calc-note">📊 Phí giao dịch: 0.1% per trade (ước tính)</p>
+                    <p class="calc-note">🏛️ Thuế TNCN: 10% trên lợi nhuận (áp dụng nếu có)</p>
+                </div>
             </div>
         </div>
     </div>
 
     <!-- Scripts -->
-    <script src="/static/app.js"></script>
+    <script src="/static/portfolio.js?v=2.1.0"></script>
+    <script src="/static/app.js?v=2.1.0"></script>
     <script>
         // Modal functionality
         function showPrivacyPolicy() {
@@ -521,6 +646,68 @@
             }
         }
     </script>
+    <!-- Add Transaction Modal -->
+    <div id="addTxModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Thêm Giao Dịch Mới</h2>
+                <span class="close" onclick="closeModal('addTxModal')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="addTxForm">
+                    <div class="form-group">
+                        <label>Loại Tài Sản</label>
+                        <div class="radio-group">
+                            <label class="radio-option">
+                                <input type="radio" name="txAsset" value="gold" checked>
+                                <span>Vàng (Gold)</span>
+                            </label>
+                            <label class="radio-option">
+                                <input type="radio" name="txAsset" value="silver">
+                                <span>Bạc (Silver)</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Thương Hiệu</label>
+                            <select id="txBrand" required>
+                                <option value="SJC">SJC</option>
+                                <option value="DOJI">DOJI</option>
+                                <option value="PNJ">PNJ</option>
+                                <option value="RING">Nhẫn Trơn</option>
+                                <option value="WORLD">Thế Giới (USD)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Ngày Mua</label>
+                            <input type="date" id="txDate" required>
+                        </div>
+                    </div>
+
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Số Lượng (Lượng/Oz)</label>
+                            <input type="number" id="txAmount" step="0.01" min="0.01" placeholder="Ví dụ: 1.5" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Giá Mua (VND/Lượng)</label>
+                            <input type="number" id="txPrice" step="1000" min="0" placeholder="Nhập giá mua..."
+                                required>
+                        </div>
+                    </div>
+
+                    <!-- Auto Price Suggestion -->
+                    <div class="price-suggest">
+                        <small>💡 Gợi ý giá hiện tại: <span id="suggestPrice" class="clickable-price">--</span></small>
+                    </div>
+
+                    <button type="submit" class="submit-btn">Lưu Giao Dịch</button>
+                </form>
+            </div>
+        </div>
+    </div>
 </body>
 
 </html>

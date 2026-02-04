@@ -444,7 +444,101 @@ class GoldPredictor:
         elif drivers['rsi']['value'] < 25:
              factors.append("RSI báo hiệu thị trường Quá Bán, cơ hội hồi phục")
              
-        return {'factors': factors, 'raw': drivers}
+        return {
+            'factors': factors, 
+            'raw': drivers,
+            'ai_explanation': self._generate_ai_explanation(drivers, factors)
+        }
+    
+    def _generate_ai_explanation(self, drivers: dict, factors: list) -> dict:
+        """Generate AI explanation of market conditions."""
+        explanation = {
+            'summary': '',
+            'key_factors': [],
+            'outlook': '',
+            'confidence': 'Medium'
+        }
+        
+        # Analyze key market conditions
+        vix_val = drivers.get('vix', {}).get('value', 20)
+        dxy_change = drivers.get('dxy', {}).get('change', 0)
+        us10y_change = drivers.get('us10y', {}).get('change', 0)
+        rsi_val = drivers.get('rsi', {}).get('value', 50)
+        
+        # Generate summary
+        if vix_val > 30:
+            explanation['summary'] = "Thị trường đang trong trạng thái 'sợ hãi' với VIX cao"
+        elif vix_val > 25:
+            explanation['summary'] = "Thị trường có sự bất ổn gia tăng"
+        elif dxy_change < -1.0:
+            explanation['summary'] = "Đồng USD suy yếu mạnh, hỗ trợ kim loại quý"
+        elif dxy_change > 1.0:
+            explanation['summary'] = "Đồng USD mạnh lên, gây áp lực lên kim loại quý"
+        else:
+            explanation['summary'] = "Thị trường đang ở trạng thái tương đối cân bằng"
+        
+        # Key factors with impact levels
+        if vix_val > 25:
+            explanation['key_factors'].append({
+                'factor': 'VIX cao',
+                'impact': 'Tích cực', 
+                'reason': 'Nhà đầu tư tìm đến kim loại quý như nơi trú ẩn an toàn',
+                'value': f"{vix_val:.1f}"
+            })
+        
+        if dxy_change < -0.5:
+            explanation['key_factors'].append({
+                'factor': 'USD suy yếu',
+                'impact': 'Tích cực',
+                'reason': 'Kim loại quý trở nên rẻ hơn đối với người mua bằng ngoại tệ khác',
+                'value': f"{dxy_change:.2f}%"
+            })
+        elif dxy_change > 0.5:
+            explanation['key_factors'].append({
+                'factor': 'USD mạnh lên', 
+                'impact': 'Tiêu cực',
+                'reason': 'Kim loại quý trở nên đắt hơn đối với người mua bằng ngoại tệ khác',
+                'value': f"{dxy_change:.2f}%"
+            })
+        
+        if us10y_change > 1.0:
+            explanation['key_factors'].append({
+                'factor': 'Lãi suất tăng',
+                'impact': 'Tiêu cực',
+                'reason': 'Chi phí cơ hội giữ kim loại quý tăng lên',
+                'value': f"+{us10y_change:.2f}%"
+            })
+        
+        if rsi_val > 75:
+            explanation['key_factors'].append({
+                'factor': 'RSI quá mua',
+                'impact': 'Tiêu cực', 
+                'reason': 'Có thể sắp xảy ra điều chỉnh giá',
+                'value': f"{rsi_val:.0f}"
+            })
+        elif rsi_val < 25:
+            explanation['key_factors'].append({
+                'factor': 'RSI quá bán',
+                'impact': 'Tích cực',
+                'reason': 'Có thể sắp xảy ra hồi phục giá', 
+                'value': f"{rsi_val:.0f}"
+            })
+        
+        # Generate outlook
+        positive_factors = sum(1 for f in explanation['key_factors'] if f['impact'] == 'Tích cực')
+        negative_factors = sum(1 for f in explanation['key_factors'] if f['impact'] == 'Tiêu cực')
+        
+        if positive_factors > negative_factors:
+            explanation['outlook'] = "Xu hướng tăng giá có khả năng cao trong ngắn hạn"
+            explanation['confidence'] = 'High' if positive_factors >= 3 else 'Medium'
+        elif negative_factors > positive_factors:
+            explanation['outlook'] = "Xu hướng giảm giá có thể xảy ra trong ngắn hạn"
+            explanation['confidence'] = 'High' if negative_factors >= 3 else 'Medium'
+        else:
+            explanation['outlook'] = "Thị trường có thể đi ngang trong ngắn hạn"
+            explanation['confidence'] = 'Medium'
+        
+        return explanation
 
     def get_yesterday_accuracy(self) -> Dict:
         """Simulate yesterday prediction."""

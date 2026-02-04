@@ -51,7 +51,7 @@ class EnhancedPredictor:
         
     def load_data(self):
         """Load enhanced dataset."""
-        print(f"📊 Loading enhanced dataset from {self.data_path}...")
+        print(f"\U0001f4ca Loading enhanced dataset from {self.data_path}...")
         
         if not os.path.exists(self.data_path):
             raise FileNotFoundError(f"Enhanced dataset not found. Run fetch_external_data.py first.")
@@ -66,7 +66,7 @@ class EnhancedPredictor:
         self.data['high'] = self.data['Silver_High']
         self.data['low'] = self.data['Silver_Low']
         
-        print(f"✓ Loaded {len(self.data):,} records with external features")
+        print(f"\✓ Loaded {len(self.data):,} records with external features")
         print(f"  Date range: {self.data['Date'].min()} to {self.data['Date'].max()}")
         
     def create_features(self):

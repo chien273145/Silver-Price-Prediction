@@ -16,6 +16,7 @@ const state = {
     realtime: null,
     modelInfo: null,
     chart: null,
+    fearGreedChart: null,
     refreshInterval: null
 };
 
@@ -73,6 +74,259 @@ function animateNumber(element, targetValue, duration = 800) {
     requestAnimationFrame(update);
 }
 
+// ========== FEAR & GREED GAUGE CHART ==========
+function createFearGreedGauge() {
+    const ctx = document.getElementById('sentimentGauge');
+    if (!ctx) return;
+
+    // Destroy existing chart if it exists
+    if (state.fearGreedChart) {
+        state.fearGreedChart.destroy();
+    }
+
+    state.fearGreedChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            datasets: [{
+                data: [0, 100],
+                backgroundColor: [
+                    '#e74c3c',  // Red for fear
+                    '#ecf0f1'   // Light gray for background
+                ],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            circumference: 180,
+            rotation: 270,
+            cutout: '75%',
+            plugins: {
+                legend: { display: false },
+                tooltip: { enabled: false }
+            },
+            animation: {
+                animateRotate: true,
+                animateScale: false,
+                duration: 1000
+            }
+        }
+    });
+}
+
+function updateFearGreedGauge(score, signal, color) {
+    if (!state.fearGreedChart) return;
+
+    // Update gauge data
+    state.fearGreedChart.data.datasets[0].data = [score, 100 - score];
+    state.fearGreedChart.data.datasets[0].backgroundColor[0] = color;
+    state.fearGreedChart.update();
+
+    // Update center text
+    const gaugeValue = document.getElementById('sentimentValue');
+    const sentimentText = document.getElementById('sentimentText');
+
+    if (gaugeValue) {
+        gaugeValue.textContent = score;
+        gaugeValue.style.color = color;
+    }
+
+    if (sentimentText) {
+        sentimentText.textContent = signal;
+        sentimentText.style.color = color;
+    }
+}
+
+async function fetchFearGreedIndex() {
+    try {
+        const response = await fetch(`${API_BASE}/api/fear-greed`);
+        const data = await response.json();
+
+        if (data.success) {
+            const { score, signal, color, components } = data.index;
+            updateFearGreedGauge(score, signal, color);
+
+            // Optional: Log components for debugging
+            console.log('Fear & Greed Components:', components);
+        }
+    } catch (error) {
+        console.error('Error fetching Fear & Greed Index:', error);
+        // Fallback to neutral
+        updateFearGreedGauge(50, 'NEUTRAL', '#f1c40f');
+    }
+}
+
+// ========== PERFORMANCE TRANSPARENCY ==========
+async function fetchPerformanceTransparency() {
+    try {
+        const endpoint = state.asset === 'gold' ?
+            `${API_BASE}/api/gold/accuracy` :
+            `${API_BASE}/api/performance-transparency`;
+
+        const response = await fetch(endpoint);
+        const data = await response.json();
+
+        if (data.success) {
+            updatePerformanceDisplay(data.performance);
+        }
+    } catch (error) {
+        console.error('Error fetching performance transparency:', error);
+    }
+}
+
+function updatePerformanceDisplay(performance) {
+    const accuracyContent = document.getElementById('accuracyContent');
+    const accuracyBadge = document.getElementById('accuracyBadge');
+
+    if (!accuracyContent) return;
+
+    const {
+        date,
+        forecast,
+        actual,
+        difference,
+        accuracy,
+        model_confidence
+    } = performance;
+
+    // Create detailed HTML
+    const performanceHTML = `
+        <div class="performance-grid">
+            <div class="perf-item">
+                <div class="perf-label">📅 Date</div>
+                <div class="perf-value">${date}</div>
+            </div>
+            <div class="perf-item">
+                <div class="perf-label">🎯 Forecast</div>
+                <div class="perf-value">${state.currency === 'VND' ?
+            new Intl.NumberFormat('vi-VN').format(forecast.vnd) + ' VND' :
+            '$' + forecast.usd}</div>
+            </div>
+            <div class="perf-item">
+                <div class="perf-label">📊 Actual</div>
+                <div class="perf-value">${state.currency === 'VND' ?
+            new Intl.NumberFormat('vi-VN').format(actual.vnd) + ' VND' :
+            '$' + actual.usd}</div>
+            </div>
+            <div class="perf-item">
+                <div class="perf-label">📈 Difference</div>
+                <div class="perf-value ${difference.percentage > 0 ? 'positive' : 'negative'}">
+                    ${difference.percentage > 0 ? '+' : ''}${difference.percentage}%
+                </div>
+            </div>
+            <div class="perf-item highlight">
+                <div class="perf-label">✅ Accuracy</div>
+                <div class="perf-value" style="color: ${accuracy.grade_color}">
+                    ${accuracy.overall}% (${accuracy.grade})
+                </div>
+            </div>
+            <div class="perf-item">
+                <div class="perf-label">💪 Confidence</div>
+                <div class="perf-value">${model_confidence}</div>
+            </div>
+        </div>
+        <div class="performance-comment">
+            <strong>${accuracy.comment}</strong>
+            ${accuracy.direction_correct !== null ?
+            `| Direction: ${accuracy.direction_correct ? '✅ Correct' : '❌ Wrong'}` : ''}
+        </div>
+    `;
+
+    accuracyContent.innerHTML = performanceHTML;
+
+    if (accuracyBadge) {
+        accuracyBadge.textContent = `${accuracy.overall}%`;
+        accuracyBadge.style.backgroundColor = accuracy.grade_color;
+    }
+}
+
+// ========== EXPLAINABLE AI ==========
+async function fetchMarketFactors() {
+    try {
+        const endpoint = state.asset === 'gold' ?
+            `${API_BASE}/api/gold/predict` :
+            `${API_BASE}/api/predict`;
+
+        const response = await fetch(endpoint);
+        const data = await response.json();
+
+        if (data.success && data.market_drivers) {
+            updateMarketFactorsDisplay(data.market_drivers);
+        }
+    } catch (error) {
+        console.error('Error fetching market factors:', error);
+    }
+}
+
+function updateMarketFactorsDisplay(marketDrivers) {
+    const marketFactorsEl = document.getElementById('marketFactors');
+    if (!marketFactorsEl) return;
+
+    // Get AI explanation if available
+    const aiExplanation = marketDrivers.ai_explanation;
+
+    // Build dynamic factors HTML
+    let factorsHTML = '';
+
+    if (aiExplanation) {
+        // AI-Generated Explanation
+        factorsHTML = `
+            <div class="ai-summary">
+                <div class="ai-summary-text">
+                    <strong>🤖 Phân tích AI:</strong> ${aiExplanation.summary}
+                </div>
+                <div class="ai-confidence">
+                    Mức độ tin cậy: <span class="confidence-${aiExplanation.confidence.toLowerCase()}">${aiExplanation.confidence}</span>
+                </div>
+            </div>
+        `;
+
+        // Key factors with detailed explanations
+        if (aiExplanation.key_factors && aiExplanation.key_factors.length > 0) {
+            factorsHTML += '<div class="dynamic-factors">';
+            aiExplanation.key_factors.forEach(factor => {
+                const impactClass = factor.impact === 'Tích cực' ? 'positive' : 'negative';
+                const impactIcon = factor.impact === 'Tích cực' ? '📈' : '📉';
+
+                factorsHTML += `
+                    <div class="factor-item dynamic ${impactClass}">
+                        <h4>
+                            ${impactIcon} ${factor.factor} 
+                            <span class="factor-value">${factor.value}</span>
+                        </h4>
+                        <p class="factor-reason">${factor.reason}</p>
+                        <div class="factor-impact ${impactClass}">
+                            ${factor.impact}
+                        </div>
+                    </div>
+                `;
+            });
+            factorsHTML += '</div>';
+        }
+
+        // AI Outlook
+        if (aiExplanation.outlook) {
+            factorsHTML += `
+                <div class="ai-outlook">
+                    <h4>🔮 Dự báo thị trường</h4>
+                    <p>${aiExplanation.outlook}</p>
+                </div>
+            `;
+        }
+    } else {
+        // Fallback to static factors
+        factorsHTML = marketDrivers.factors.map(factor =>
+            `<div class="factor-item dynamic">
+                <h4>📊 Phân tích thị trường</h4>
+                <p>${factor}</p>
+            </div>`
+        ).join('');
+    }
+
+    marketFactorsEl.innerHTML = factorsHTML;
+}
+
 // ========== UPDATE UI FOR ASSET TYPE ==========
 function updateUIForAsset() {
     const isGold = state.asset === 'gold';
@@ -115,6 +369,14 @@ function updateUIForAsset() {
     document.title = isGold
         ? 'Gold Price Prediction | Premium AI Forecasting'
         : 'Silver Price Prediction | Premium AI Forecasting';
+
+    // Update Local Price Table Header
+    const localPriceHeader = document.getElementById('localPriceHeader');
+    if (localPriceHeader) {
+        localPriceHeader.textContent = isGold
+            ? '🇻🇳 Bảng Giá Vàng Trong Nước (SJC, DOJI, PNJ)'
+            : '🇻🇳 Bảng Giá Bạc (SJC, Thế Giới)';
+    }
 }
 
 // DOM Elements
@@ -370,8 +632,12 @@ function updatePriceCards() {
     const { last_known, predictions, summary, exchange_rate, unit } = state.predictions;
 
     // Current price with animation
-    animateNumber(elements.currentPrice, last_known.price);
-    elements.priceUnit.textContent = unit;
+    // ONLY update from prediction data if local prices haven't already set a value
+    // (Local prices from fetchLocalPrices() take priority - Phú Quý for Silver, SJC for Gold)
+    if (!window.latestLocalPrices || !window.latestLocalPrices.items || window.latestLocalPrices.items.length === 0) {
+        animateNumber(elements.currentPrice, last_known.price);
+        elements.priceUnit.textContent = unit;
+    }
 
     // Price change (using realtime if available)
     if (state.realtime && state.realtime.silver_price) {
@@ -670,6 +936,13 @@ async function loadData() {
             getDataStatus().catch(e => { console.error('Data status error:', e); return null; })
         ]);
 
+        // Fetch additional features after main data
+        const [fearGreed, performance, marketFactors] = await Promise.all([
+            fetchFearGreedIndex().catch(e => { console.error('Fear & Greed error:', e); }),
+            fetchPerformanceTransparency().catch(e => { console.error('Performance error:', e); }),
+            fetchMarketFactors().catch(e => { console.error('Market factors error:', e); })
+        ]);
+
         // Verify we are still on the same asset (race condition check)
         if (state.asset !== currentAsset) {
             console.log('Asset changed during load, ignoring result');
@@ -764,45 +1037,63 @@ async function loadData() {
 
 // Event Handlers
 function setupEventListeners() {
-    // Currency toggle
+    // Period buttons (30, 90, 180 days)
+    document.querySelectorAll('.period-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            updateChart(parseInt(btn.dataset.days));
+        });
+    });
+
+    // Asset buttons (Silver/Gold)
+    document.querySelectorAll('.asset-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.asset-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            // Set new state
+            state.asset = btn.dataset.asset;
+
+            // Update UI
+            updateUIForAsset();
+
+            // Reload data
+            loadData();
+            if (typeof fetchLocalPrices === 'function') {
+                fetchLocalPrices();
+            }
+        });
+    });
+
+    // Currency buttons
     document.querySelectorAll('.toggle-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             state.currency = btn.dataset.currency;
-            loadData();
-        });
-    });
 
-    // Period buttons
-    document.querySelectorAll('.period-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            state.historicalDays = parseInt(btn.dataset.days);
+            // Refresh displays
+            updateUIForAsset();
+            if (state.historicalDays) updateChart(state.historicalDays);
             loadData();
         });
     });
 
     // Refresh button
-    elements.refreshBtn.addEventListener('click', loadData);
-
-    // Asset toggle (Silver/Gold)
-    document.querySelectorAll('.asset-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('.asset-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            state.asset = btn.dataset.asset;
-            updateUIForAsset();
-            loadData();
-            loadAccuracy(); // Refresh accuracy metrics for new asset
-        });
-    });
+    if (elements.refreshBtn) {
+        elements.refreshBtn.addEventListener('click', loadData);
+    }
 
     // Auto refresh every 5 minutes
-    state.refreshInterval = setInterval(loadData, 5 * 60 * 1000);
+    if (state.refreshInterval) clearInterval(state.refreshInterval);
+    state.refreshInterval = setInterval(() => {
+        loadData();
+        if (typeof fetchLocalPrices === 'function') {
+            fetchLocalPrices();
+        }
+    }, 5 * 60 * 1000);
 }
-
 
 
 // Initialize
@@ -812,6 +1103,7 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('   Initializing...');
 
     createParticles();
+    createFearGreedGauge();
     updateUIForAsset();
     setupEventListeners();
     loadData();
@@ -855,20 +1147,31 @@ async function loadNews() {
 function displayNews(newsItems) {
     if (!elements.newsList) return;
 
-    const html = newsItems.map(item => `
-        <div class="news-item">
-            <span class="news-icon">${item.icon || '📰'}</span>
-            <div class="news-content">
-                <div class="news-title">
-                    <a href="${item.link}" target="_blank" rel="noopener">${item.title}</a>
-                </div>
-                <div class="news-meta">
-                    <span class="news-source">${item.source}</span>
-                    <span class="news-date">${formatNewsDate(item.date)}</span>
-                </div>
+    const html = newsItems.map(item => {
+        // Determine sentiment class for colored left border
+        let sentimentClass = '';
+        const iconLower = (item.icon || '').toLowerCase();
+        const titleLower = (item.title || '').toLowerCase();
+
+        // Detect sentiment from icon or title content
+        if (iconLower.includes('📈') || iconLower.includes('🟢') || iconLower.includes('💹') ||
+            titleLower.includes('tăng') || titleLower.includes('hỗ trợ') || titleLower.includes('tích cực')) {
+            sentimentClass = 'bullish';
+        } else if (iconLower.includes('📉') || iconLower.includes('🔴') ||
+            titleLower.includes('giảm') || titleLower.includes('suy yếu') || titleLower.includes('tiêu cực')) {
+            sentimentClass = 'bearish';
+        } else if (iconLower.includes('🏛') || iconLower.includes('📊')) {
+            sentimentClass = 'neutral';
+        }
+
+        return `
+            <div class="news-item ${sentimentClass}">
+                <span class="news-icon">${item.icon || '📰'}</span>
+                <div class="news-title">${item.title}</div>
+                <div class="news-source">${item.source} ${formatNewsDate(item.date)}</div>
             </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 
     elements.newsList.innerHTML = html;
 }
@@ -1128,21 +1431,19 @@ function updateAccuracy(check) {
     }
 
     elements.accuracyContent.innerHTML = `
-        <div class="acc-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.9em;">
-            <div style="color: #94a3b8;">Dự báo hôm qua:</div>
-            <div style="text-align: right; font-weight: 600;">${formatPrice(check.predicted_usd, 'USD')}</div>
-            
-            <div style="color: #94a3b8;">Thực tế hôm nay:</div>
-            <div style="text-align: right; font-weight: 600;">${formatPrice(check.actual_usd, 'USD')}</div>
-            
-            <div style="color: #94a3b8;">Sai số:</div>
-            <div style="text-align: right; color: ${check.diff_usd < 0.5 ? '#4ade80' : '#f87171'}">
-                ${check.diff_usd.toFixed(2)} USD
-            </div>
+        <div class="accuracy-row">
+            <span class="label">Dự báo hôm qua:</span>
+            <span class="value">${formatPrice(check.predicted_usd, 'USD')}</span>
         </div>
-        <p style="margin-top: 10px; font-size: 0.8em; color: #64748b; text-align: right;">
-            *So sánh giá đóng cửa USD/oz
-        </p>
+        <div class="accuracy-row">
+            <span class="label">Thực tế hôm nay:</span>
+            <span class="value">${formatPrice(check.actual_usd, 'USD')}</span>
+        </div>
+        <div class="accuracy-row">
+            <span class="label">Sai số:</span>
+            <span class="value ${check.diff_usd >= 0.5 ? 'highlight' : ''}">${check.diff_usd.toFixed(2)} USD</span>
+        </div>
+        <div class="accuracy-note">*So sánh giá đóng cửa USD/oz</div>
     `;
 }
 
@@ -1189,25 +1490,69 @@ function updateCalc() {
     elements.calcPredPrice.textContent = predPriceVND ? formatPrice(predPriceVND) + ' VND' : '--';
 
     if (buyPrice > 0 && currentPriceVND > 0) {
-        // Fee 2% spread roughly
-        const spread = 0.02;
+        // Enhanced fee calculation
+        const spread = 0.02; // 2% market spread
+        const transactionFee = 0.001; // 0.1% per transaction
+        const taxRate = 0.10; // 10% capital gains tax
 
-        // Sell Now
-        const sellPriceNow = currentPriceVND * (1 - spread / 2); // Sell price is usually lower than Buy price (Mid)
-        // Actually usually "Current Price" displayed is Mid or Close.
-        // Let's assume standard 1-2% gap.
+        // Sell Now calculations
+        const sellPriceNow = currentPriceVND * (1 - spread / 2);
+        const feeNow = sellPriceNow * transactionFee;
+        const netSellNow = sellPriceNow - feeNow;
+        const profitNow = (netSellNow - buyPrice) * amount;
+        const profitNowAfterTax = profitNow > 0 ? profitNow * (1 - taxRate) : profitNow;
+        const profitNowPercent = ((netSellNow - buyPrice) / buyPrice) * 100;
 
-        const profitAg = (sellPriceNow - buyPrice) * amount;
+        // Update current profit display
+        elements.calcProfitNow.textContent = formatPrice(profitNowAfterTax) + ' VND';
+        elements.calcProfitNow.className = profitNowAfterTax >= 0 ? 'calc-value positive' : 'calc-value negative';
 
-        elements.calcProfitNow.textContent = formatPrice(profitAg) + ' VND';
-        elements.calcProfitNow.className = profitAg >= 0 ? 'calc-value positive' : 'calc-value negative';
+        // Add percentage display
+        const profitNowPercentEl = document.getElementById('calcProfitNowPercent');
+        if (profitNowPercentEl) {
+            profitNowPercentEl.textContent = `${profitNowPercent >= 0 ? '+' : ''}${profitNowPercent.toFixed(2)}%`;
+            profitNowPercentEl.className = profitNowPercent >= 0 ? 'calc-value positive' : 'calc-value negative';
+        }
 
-        // Sell Tomorrow
+        // Sell Predicted calculations (Day 7)
         const sellPricePred = predPriceVND * (1 - spread / 2);
-        const profitPred = (sellPricePred - buyPrice) * amount;
+        const feePred = sellPricePred * transactionFee;
+        const netSellPred = sellPricePred - feePred;
+        const profitPred = (netSellPred - buyPrice) * amount;
+        const profitPredAfterTax = profitPred > 0 ? profitPred * (1 - taxRate) : profitPred;
+        const profitPredPercent = ((netSellPred - buyPrice) / buyPrice) * 100;
 
-        elements.calcProfitPred.textContent = formatPrice(profitPred) + ' VND';
-        elements.calcProfitPred.className = profitPred >= 0 ? 'calc-value positive' : 'calc-value negative';
+        // Update predicted profit display
+        elements.calcProfitPred.textContent = formatPrice(profitPredAfterTax) + ' VND';
+        elements.calcProfitPred.className = profitPredAfterTax >= 0 ? 'calc-value positive' : 'calc-value negative';
+
+        // Add percentage display
+        const profitPredPercentEl = document.getElementById('calcProfitPredPercent');
+        if (profitPredPercentEl) {
+            profitPredPercentEl.textContent = `${profitPredPercent >= 0 ? '+' : ''}${profitPredPercent.toFixed(2)}%`;
+            profitPredPercentEl.className = profitPredPercent >= 0 ? 'calc-value positive' : 'calc-value negative';
+        }
+
+        // Scenario calculations
+        const bestCasePrice = predPriceVND * 1.10; // +10%
+        const worstCasePrice = predPriceVND * 0.90; // -10%
+
+        const bestCaseProfit = ((bestCasePrice * (1 - spread / 2) - buyPrice) * amount) * (profitPred > 0 ? (1 - taxRate) : 1);
+        const worstCaseProfit = ((worstCasePrice * (1 - spread / 2) - buyPrice) * amount) * (profitPred > 0 ? (1 - taxRate) : 1);
+
+        // Update scenario displays
+        const bestCaseEl = document.getElementById('calcBestCase');
+        const worstCaseEl = document.getElementById('calcWorstCase');
+
+        if (bestCaseEl) {
+            bestCaseEl.textContent = formatPrice(bestCaseProfit) + ' VND';
+            bestCaseEl.className = bestCaseProfit >= 0 ? 'scenario-value positive' : 'scenario-value negative';
+        }
+
+        if (worstCaseEl) {
+            worstCaseEl.textContent = formatPrice(worstCaseProfit) + ' VND';
+            worstCaseEl.className = worstCaseProfit >= 0 ? 'scenario-value positive' : 'scenario-value negative';
+        }
     }
 }
 
@@ -1218,3 +1563,135 @@ if (elements.calcBuyPrice) {
 }
 // GLOBAL MODAL HELPERS
 window.showCalculator = showCalculator;
+
+
+
+// ========== LOCAL PRICES FETCHING ==========
+async function fetchLocalPrices() {
+    try {
+        const tableBody = document.getElementById('localPriceTableBody');
+        const timeBadge = document.getElementById('localPriceTime');
+        if (!tableBody) return;
+
+        // Use template literal correctly
+        const response = await fetch(`${API_BASE}/api/prices/local`);
+        const result = await response.json();
+
+        if (result.success && result.data.items.length > 0) {
+            // Expose for Portfolio logic
+            window.latestLocalPrices = result.data;
+            if (window.updatePortfolioUI) window.updatePortfolioUI();
+
+            // Mock Data Indicator
+            const headerBadges = document.querySelector('.local-prices-section .header-badges');
+            if (result.data.is_mock) {
+                if (!document.getElementById('mockBadge')) {
+                    const badge = document.createElement('span');
+                    badge.id = 'mockBadge';
+                    badge.className = 'badge warning';
+                    badge.textContent = '⚠️ Dữ liệu mẫu (Demo)';
+                    badge.title = 'Không thể kết nối trực tiếp đến SJC/PNJ/DOJI. Hiển thị dữ liệu giả lập.';
+                    badge.style.background = 'rgba(255, 165, 2, 0.2)';
+                    badge.style.color = '#ffa502';
+                    badge.style.marginLeft = '10px';
+                    headerBadges.appendChild(badge);
+                }
+            } else {
+                const existing = document.getElementById('mockBadge');
+                if (existing) existing.remove();
+            }
+
+            tableBody.innerHTML = '';
+
+            // Check raw items
+            console.log("Raw Local Items:", result.data.items);
+
+            // Filter by Asset State
+            const filteredItems = result.data.items.filter(item => {
+                const brandName = item.brand.toUpperCase();
+                const prodName = item.product_type.toUpperCase();
+
+                // Debug log for one item to check content
+                // console.log(`Filtering: ${prodName} (${state.asset})`);
+
+                if (state.asset === 'gold') {
+                    // Gold Mode
+                    // Exclude Silver products
+                    if (prodName.includes('BẠC') && !prodName.includes('BẠC LIÊU')) return false;
+                    return true;
+                } else {
+                    // Silver Mode
+                    // STRICTLY exclude "VÀNG" to avoid "Vàng SJC - Bạc Liêu"
+                    if (prodName.includes('VÀNG')) return false;
+
+                    // Must contain BẠC or SILVER
+                    return prodName.includes('BẠC') || prodName.includes('SILVER');
+                }
+            });
+
+            console.log("Filtered Items:", filteredItems);
+
+            filteredItems.forEach(item => {
+                const spread = item.sell_price - item.buy_price;
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><span class='brand-badge ${item.brand.toLowerCase()}'>${item.brand}</span></td>
+                    <td>${item.product_type}</td>
+                    <td class='price-up'>${new Intl.NumberFormat('vi-VN').format(item.buy_price)} ₫</td>
+                    <td class='price-down'>${new Intl.NumberFormat('vi-VN').format(item.sell_price)} ₫</td>
+                    <td>${new Intl.NumberFormat('vi-VN').format(spread)} ₫</td>
+                `;
+                tableBody.appendChild(row);
+            });
+
+            // Update Current Price Card with Best Local Price
+            if (filteredItems.length > 0) {
+                // Priority: SJC for Gold, Bạc miếng Phú Quý for Silver
+                let bestItem = filteredItems[0];
+
+                if (state.asset === 'gold') {
+                    // Gold: Prefer SJC
+                    const sjc = filteredItems.find(i => i.brand.match(/SJC/i));
+                    if (sjc) bestItem = sjc;
+                } else {
+                    // Silver: Prefer "Bạc miếng Phú Quý 999 1 lượng"
+                    const phuQuyMieng = filteredItems.find(i =>
+                        i.product_type.includes('Bạc miếng') &&
+                        i.product_type.includes('Phú Quý') &&
+                        i.product_type.includes('1 lượng')
+                    );
+                    if (phuQuyMieng) {
+                        bestItem = phuQuyMieng;
+                    } else {
+                        // Fallback: any Phú Quý silver product
+                        const phuQuy = filteredItems.find(i => i.brand.match(/Phú Quý/i));
+                        if (phuQuy) bestItem = phuQuy;
+                    }
+                }
+
+                console.log(`Best Item for ${state.asset}:`, bestItem);
+
+                // Update the main card
+                if (elements.currentPrice) {
+                    // Force update price
+                    animateNumber(elements.currentPrice, bestItem.sell_price);
+                }
+                if (elements.priceUnit) {
+                    elements.priceUnit.textContent = "VND/Lượng (" + bestItem.brand + ")";
+                }
+            }
+
+            if (timeBadge) timeBadge.textContent = 'Cập nhật: ' + new Date().toLocaleTimeString();
+        } else {
+            tableBody.innerHTML = '<tr><td colspan=5>Không thể tải dữ liệu</td></tr>';
+        }
+    } catch (e) {
+        console.error('Error fetching local prices:', e);
+    }
+}
+
+// Auto-init
+setTimeout(fetchLocalPrices, 1000);
+setInterval(fetchLocalPrices, 300000);
+
+console.log('App.js v2.0.2 Loaded - Fixed Syntax');
