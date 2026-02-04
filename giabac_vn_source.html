@@ -1,0 +1,625 @@
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="refresh" content="180">
+    <meta name="description" content="Cập nhật giá bạc hôm nay. Bạc miếng, bạc thỏi Phú Quý với mức giá tốt nhất, chênh lệch mua bán thấp. Khám phá ngay!">
+    <meta name="og:description" content="Cập nhật Giá bạc hôm nay | Bạc miếng - Bạc Thỏi - Bạc thị trường" />
+    <meta name="author" content="Phu Quy IT Department" />
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Cập nhật Giá bạc hôm nay | Bạc miếng - Bạc Thỏi - Bạc thị trường">
+    <meta property="og:image" content="/publics/images/gia-bac-hom-nay.jpg" />
+    <meta property="og:image:secure_url" content="/publics/images/gia-bac-hom-nay.jpg" />
+    <title>Giá Bạc Hôm Nay | Bạc Miếng, Bạc Thỏi Phú Quý – Cập nhật Liên Tục</title>
+    <link rel="stylesheet" href="/Content/giabac/library/bootstrap.min.css" />
+    <link rel="stylesheet" href="/Content/giabac/style.css" />
+    <link href="/Areas/Admin/Content/assets/libs/quill/quill.snow.css" rel="stylesheet" />
+    <style>
+        .social_img {
+            width: 24px;
+            height: 24px;
+        }
+    </style>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4718555627628568"
+     crossorigin="anonymous"></script>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KGKHR1B3GM"></script>
+<script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+
+    gtag('config', 'G-KGKHR1B3GM');
+</script>
+</head>
+<body>
+    <div class="tks-section position-relative" style="line-height: normal">
+        <div id="panel" class="panel">
+            <div class="">
+                <div class="header">
+                    <nav class="navbar navbar-expand-lg bg-body-tertiary">
+                        <div class="container menu-nav">
+                            <a class="navbar-brand me-5" href="https://silver.phuquygroup.vn">GIABAC.VN</a>
+                            <button id="navbar-btn" class="navbar-toggler p-2 rounded-circle menu-icon" type="button">
+                                <!-- <button
+                                    class="navbar-toggler p-2 rounded-circle menu-icon"
+                                    type="button"
+                                    data-bs-toggle="collapse"
+                                    data-bs-target="#navbarSupportedContent"
+                                    aria-controls="navbarSupportedContent"
+                                    aria-expanded="false"
+                                    aria-label="Toggle navigation"
+                                > -->
+                                <i class="fa-solid fa-bars" style="width: 1.2rem; height: 1.1rem; color: white"></i>
+                            </button>
+                            <div class="collapse navbar-collapse"
+                                    id="navbarSupportedContent">
+                                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                                    <li class="nav-item">
+                                        <a class="nav-link active" aria-current="page" href="#">Trang chủ</a>
+                                    </li>
+                                    <li class="nav-item">
+                                        <a class="nav-link active" aria-current="page" href="https://phuquygroup.vn">Giá vàng</a>
+                                    </li>
+                                    <li class="nav-item">
+                                        <a class="nav-link active" aria-current="page" href="https://giabac.phuquygroup.vn">Giá bạc</a>
+                                    </li>
+                                    <li class="nav-item">
+                                    <a class="nav-link active" aria-current="page" href="https://silver.phuquygroup.vn">Sản phẩm</a>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </nav>
+            </div>
+            <div class="body container">
+                <div class="row">
+                    <div class="col-lg-8 col-sm-12 p-0">
+                        <div class="breadcrumb px-3">
+                            <nav aria-label="breadcrumb">
+                                <ol class="breadcrumb">
+                                    <li class="breadcrumb-item">Trang chủ</li>
+                                    <li class="breadcrumb-item active" aria-current="page">
+                                        Giá bạc
+                                    </li>
+                                </ol>
+                            </nav>
+                        </div>
+                        <div class="body-header px-3">
+                            <p class="fs-4 fw-bold m-0 me-1">Giá bạc Phú Quý 999</p>
+                            <p class="fs-4 fw-bold m-0">(Bạc thỏi, Bạc miếng)</p>
+                        </div>
+                        
+                        <div class="body-description px-3" id="price-percent-partial">
+                                <p class="d-flex align-items-center m-0">
+        
+        
+        <span>&nbsp;</span>
+    </p>
+    <p class="m-0">
+        
+        
+    </p>
+
+
+                        </div>
+
+                        <div class="d-flex price-area align-content-center mt-4 px-3">
+                            
+
+
+
+<div class="container-fluid">
+    <div class="row" id="priceDiv">
+        <div class="col-5 col-lg-6">
+            <p class="mb-1">Giá mua vào</p>
+            <p class="text-24px text-red"></p>
+        </div>
+        <div class="col-7 col-lg-6">
+            <p class="mb-1">Giá bán ra</p>
+            <p class="text-24px text-green"></p>
+        </div>
+    </div>
+</div>
+
+                            <div class="col-sm 12 col-lg-4">
+                                <ul class="nav nav-pills mb-3 unit-list"
+                                    id="pills-tab"
+                                    role="tablist">
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link"
+                                                id="pills-home-tab"
+                                                data-bs-toggle="pill"
+                                                data-bs-target="#pills-home"
+                                                type="button"
+                                                role="tab"
+                                                aria-controls="pills-home"
+                                                aria-selected="false">
+                                            Chỉ
+                                        </button>
+                                    </li>
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link"
+                                                id="pills-profile-tab"
+                                                data-bs-toggle="pill"
+                                                data-bs-target="#pills-profile"
+                                                type="button"
+                                                role="tab"
+                                                aria-controls="pills-profile"
+                                                aria-selected="false">
+                                            Lượng
+                                        </button>
+                                    </li>
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link active"
+                                                id="pills-contact-tab"
+                                                data-bs-toggle="pill"
+                                                data-bs-target="#pills-contact"
+                                                type="button"
+                                                role="tab"
+                                                aria-controls="pills-contact"
+                                                aria-selected="true">
+                                            Kilogram
+                                        </button>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="chart-area px-3">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <p class="fw-bold text-12px m-0">
+                                    Biểu đồ giá bạc Phú Quý 999
+                                </p>
+                                
+                            </div>
+                            <hr />
+                            <div class="my-3">
+                                <ul class="nav nav-pills mb-3 unit-list" id="pills-days-tab" role="tablist">
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link me-2 text-10px p-2 "
+                                                id="button-1D"
+                                                type="button"
+                                                role="tab"
+                                                aria-controls="1D"
+                                                aria-selected="true">
+                                            1D
+                                        </button>
+                                    </li>
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link me-2 text-10px p-2 active"
+                                                id="button-7D"
+                                                type="button"
+                                                role="tab"
+                                                aria-controls="7D"
+                                                aria-selected="false">
+                                            7D
+                                        </button>
+                                    </li>
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link me-2 text-10px p-2"
+                                                id="button-1M"
+                                                type="button"
+                                                role="tab"
+                                                aria-controls="1M"
+                                                aria-selected="false">
+                                            1M
+                                        </button>
+                                    </li>
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link me-2 text-10px p-2"
+                                                id="button-3M"
+                                                type="button"
+                                                role="tab"
+                                                aria-controls="3M"
+                                                aria-selected="false">
+                                            3M
+                                        </button>
+                                    </li>
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link me-2 text-10px p-2"
+                                                id="button-1Y"
+                                                type="button"
+                                                role="tab"
+                                                aria-controls="1Y"
+                                                aria-selected="false">
+                                            1Y
+                                        </button>
+                                    </li>
+                                </ul>
+                            </div>
+                            <div id="chartContainer" style="height:340px"></div>
+                        </div>
+
+                        <div class="mt-3 table-area px-2 px-3" id="priceTable">
+                            <p class="text-12px fw-bold">
+                                Bảng giá bạc Phú Quý  cập nhật 15:27 04/02/2026
+                            </p>
+                            <table class="w-100">
+                                <colgroup>
+                                    <col style="width: 250px" />
+                                    <col style="width: 20px" />
+                                    <col style="width: 102px" />
+                                    <col style="width: 102px" />
+                                </colgroup>
+                                <thead>
+                                    <tr>
+                                        <th class="text-center fw-bold"
+                                            style="background-color: #1d2c5a; color: #fff">
+                                            SẢN PHẨM
+                                        </th>
+                                        <th class="text-center fw-bold"
+                                            style="background-color: #1d2c5a; color: #fff">
+                                            ĐƠN VỊ
+                                        </th>
+                                        <th class="text-center fw-bold"
+                                            style="background-color: #1d2c5a; color: #fff">
+                                            GIÁ MUA VÀO
+                                        </th>
+                                        <th class="text-center fw-bold"
+                                            style="background-color: #1d2c5a; color: #fff">
+                                            GIÁ BÁN RA
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td colspan="4" class="fw-bold text-center">
+                                            BẠC THƯƠNG HIỆU PHÚ QUÝ
+                                        </td>
+                                    </tr>
+                                            <tr>
+                                                <td class="fw-bold">Bạc miếng Ph&#250; Qu&#253; 999 1 lượng</td>
+                                                <td class="text-center">Vnđ/Lượng</td>
+                                                <td class="text-center fw-bolder">3,365,000</td>
+                                                <td class="text-center fw-bolder">3,469,000</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="fw-bold">Bạc thỏi Ph&#250; Qu&#253; 999 10 lượng, 5 lượng</td>
+                                                <td class="text-center">Vnđ/Lượng</td>
+                                                <td class="text-center fw-bolder">3,365,000</td>
+                                                <td class="text-center fw-bolder">3,469,000</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="fw-bold">Đồng bạc mỹ nghệ ph&#250; qu&#253; 999</td>
+                                                <td class="text-center">Vnđ/Lượng</td>
+                                                <td class="text-center fw-bolder">3,365,000</td>
+                                                <td class="text-center fw-bolder">3,959,000</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="fw-bold">Bạc thỏi Ph&#250; Qu&#253; 999 1Kilo</td>
+                                                <td class="text-center">Vnđ/Kg</td>
+                                                <td class="text-center fw-bolder">89,733,109</td>
+                                                <td class="text-center fw-bolder">92,506,435</td>
+                                            </tr>
+
+                                    <tr>
+                                        <td colspan="4"
+                                            class="fw-bold text-center"
+                                            style="padding-top: 4px"></td>
+                                    </tr>
+                                    <tr>
+                                        <td colspan="4" class="fw-bold text-center">
+                                            BẠC THƯƠNG HIỆU KHÁC
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="fw-bold">
+                                            Bạc 999 tr&#234;n 1500 lượng (Miếng-Thanh-Thỏi)
+                                        </td>
+                                        <td class="text-center">Vnđ/Lượng</td>
+                                        <td class="text-center fw-bolder">2,932,410</td>
+                                        <td class="text-center fw-bolder">3,365,000</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="fw-bold">
+                                            Bạc 999 dưới 1500 lượng (Miếng-Thanh-Thỏi)
+                                        </td>
+                                        <td class="text-center">Vnđ/Lượng</td>
+                                        <td class="text-center fw-bolder">2,847,000</td>
+                                        <td class="text-center fw-bolder">3,365,000</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="" style="padding: 16px">
+                                    <a href="https://silver.phuquygroup.vn">
+                                        <img loading="lazy" src="/publics/images/pages/giabac/1fb7db3e-800a-4787-ae7e-9f90b11430e3.png" class="w-100 h-au" alt="">
+                                    </a>
+                        </div>
+                                <div class="body-intro px-3">
+                                    <div class="ql-editor" style="white-space:normal">
+                                        <h2><strong>Về Phú Quý</strong></h2><p>Song hành với sự phát triển không ngừng của đất nước, chặng đường hơn 2 thập kỉ đầy tự hào của thương hiệu vàng bạc Phú Quý cho đến nay đã trở thành bảo chứng của sự uy tín, tận tâm và trách nhiệm trong lĩnh vực Vàng bạc nước nhà.</p><p>&nbsp;</p><p>Lĩnh vực hoạt động chính đã làm nên tên tuổi của Phú Quý ngày nay có thể kể đến là sản xuất và kinh doanh các sản phẩm Vàng miếng, Vàng mỹ nghệ, Trang sức vàng 24K, Trang sức vàng18K và mới đây nhất là tiếp cận thị trường bạc đầy tiềm năng.</p><p>&nbsp;</p><p>Tại Phú Quý, mỗi sản phẩm đến tay khách hàng là sự kết tinh của quá trình chế tác điêu luyện cùng trái tim yêu nghề của đội ngũ kim hoàn nhiệt huyết, giàu kinh nghiệm. Đồng thời với thế mạnh trong quy trình chế tác, Phú Quý luôn không ngừng cập nhật và ứng dụng những công nghệ tiên tiến trong sản xuất nhằm đem tới những sản phẩm mang giá trị thẩm mỹ tuyệt hảo, đem đến sự hài lòng và an tâm cho mọi khách hàng.</p><p>&nbsp;</p><p>Xuyên suốt chặng đường hơn 20 năm phát triển và tạo dựng niềm tin nơi khách hàng, bằng nỗ lực vàsự cố gắng vượt bậc của thương hiệu Phú Quý vinh dự nhiều lần được vinh danh với những thành tích đáng nhớ và nổi bật như Top 3 thương hiệu Việt tiêu biểu năm 2014, Cúp Doanh nghiệp việt Nam vàng năm 2010, Top 100 thương hiệu, nhãn hiệu uy tín năm 2013, …</p><p>&nbsp;</p><p>Cho đến nay, Phú Quý vẫn không ngừng nâng cao chất lượng dịch vụ, chú trọng đầu tư, cải tiến trang thiết bị và công nghệ hiện đại, để cho ra đời những sản phẩm đạt tiêu chuẩn quốc tế, đáp ứng mọi nhu cầu ngày càng cao của khách hàng.</p><p>&nbsp;</p>
+                                    </div>
+                                </div>
+                                <div class="body-intro px-3">
+                                    <div class="ql-editor" style="white-space:normal">
+                                        <h2><strong>VÀNG PHÚ QUÝ</strong></h2><p>&nbsp;</p><p><strong>VÀNG MIẾNG SJC</strong></p><p>Với định lượng 10 chỉ (1 lượng) sản phẩm vàng miếng SJC là lựa chọn để tích lũy lâu dài như một hình thức tài sản đảm bảo, an toàn và ổn định theo thời gian; dễ dàng thanh khoản, đáp ứng nhu cầu sử dụng của khách hàng.</p><p>&nbsp;</p><p><strong>NHẪN TRÒN PHÚ QUÝ 999.9</strong></p><p>Nhẫn tròn Phú Quý được chế tác từ vàng 999.9 với nhiều định lượng linh hoạt như 0,5 chỉ, 1 chỉ, 2 chỉ, 3 chỉ, 5 chỉ và 10. Sản phẩm là lựa chọn của nhiều khách hàng bởi khả năng tích trữ an toàn, đảm bảo theo thời gian; đồng thời là tặng phẩm may mắn và ý nghĩa trong những dịp đặc biệt.</p><p>&nbsp;</p><p><strong>VÀNG PHÚ QUÝ 999.9: Thần Tài Phú Quý 1 lượng, BST Phú Quý Cát Tường 1 chỉ, …</strong></p><p>Với thế mạnh trong sản xuất và không ngừng cập nhật những công nghệ tiến tiến và hiện đại trong sản xuất, các sản phẩm vàng được thiết kế và chế tác bởi Phú Quý luôn đem lại giá trị thẩm mỹ tinh xảo cùng khả năng tích lũy ổn định, an tâm cho khách hàng.</p><p>&nbsp;</p><p><strong>TRANG SỨC VÀNG 999.9, VÀNG 18K</strong></p><p><strong>C</strong>ác thiết kế trang sức vàng 999.9, vàng 18K tại Phú Quý được khách hàng đặc biệt yêu thích bởi mẫu mã đa dạng, thiết kế tinh tế và hiện đại.</p><p>Ngoài ra đem đến nhiều lựa chọn khi kết hợp cùng các loại đá quý tinh tuyển, đem đến vẻ đẹp tinh tế và sang trọng cho khách hàng.</p><p>&nbsp;</p><h2><strong>BẠC PHÚ QUÝ</strong></h2><p>Phú Quý luôn cập nhật giá bạc hôm nay theo sát biến động của thị trường quốc tế, đảm bảo người mua có được giá tốt nhất khi giao dịch bạc miếng và bạc thỏi. Tại Phú Quý, các sản phẩm bạc không chỉ được niêm yết với mức giá minh bạch mà còn cung cấp nhiều lựa chọn phù hợp với nhu cầu tích lũy và đầu tư của khách hàng.</p><p>&nbsp;</p><p><strong>BẠC MIẾNG/ BẠC THỎI PHÚ QUÝ&nbsp;</strong><br>Sản phẩm bạc miếng và bạc thỏi Phú Quý được cung cấp với 3 định lượng linh hoạt: 1 lượng (10 chỉ), 10 lượng (100 chỉ), và 1kg (266,66 chỉ).<br>Với độ tinh khiết 999, bạc Phú Quý là lựa chọn lý tưởng cho các nhà đầu tư muốn tích lũy tài sản ổn định theo thời gian. Bạc miếng và bạc thỏi Phú Quý không chỉ có tính thanh khoản cao mà còn đảm bảo giá trị tích lũy bền vững, phù hợp cho cả đầu tư dài hạn và ngắn hạn.</p><p>&nbsp;</p><p><strong>ĐỒNG BẠC MỸ NGHỆ</strong><br>Phú Quý không chỉ nổi tiếng với sản phẩm bạc miếng và bạc thỏi mà còn được biết đến với dòng sản phẩm đồng bạc mỹ nghệ tinh xảo. Được chế tác từ bạc nguyên chất 999 và công nghệ tiên tiến, các đồng bạc mỹ nghệ của Phú Quý sở hữu độ hoàn thiện cao và mang giá trị thẩm mỹ vượt trội. Đây là món quà may mắn, ý nghĩa trong nhiều dịp đặc biệt, được nhiều khách hàng lựa chọn làm tặng phẩm cho người thân hoặc đối tác. Những sản phẩm bạc mỹ nghệ này không chỉ tượng trưng cho sự giàu có mà còn mang đậm nét nghệ thuật và tinh hoa truyền thống.</p><p>&nbsp;</p><p><strong>Tại sao chọn bạc Phú Quý?</strong></p><p>1. Chênh lệch giá mua bán thấp: Phú Quý luôn đưa ra mức giá cạnh tranh với sự chênh lệch mua vào – bán ra thấp, đảm bảo khách hàng có được giá trị tốt nhất khi giao dịch.<br>2. Tính thanh khoản cao: Bạc miếng và bạc thỏi Phú Quý có tính thanh khoản cao, giúp bạn dễ dàng mua bán và trao đổi ở bất kỳ cửa hàng nào trong hệ thống của Phú Quý trên toàn quốc.<br>3. Giá niêm yết công khai: Phú Quý cam kết cung cấp thông tin giá bạc minh bạch, giúp khách hàng yên tâm khi giao dịch.</p><p>&nbsp;</p><p><strong>Các sản phẩm bạc phổ biến tại Phú Quý</strong></p><p>• Bạc miếng Phú Quý 1kg: Độ tinh khiết 999, sản phẩm lý tưởng cho các nhà đầu tư lớn muốn tích lũy tài sản dài hạn.<br>• Bạc thỏi Phú Quý 10 Lượng (375gram): Được thiết kế tinh tế - gọn gàng, dễ dàng mua bán và phù hợp với các nhà đầu tư vừa và nhỏ.<br>. Bạc miếng Phú Quý 1 Lượng (37,5 gram): Được thiết kế như một tác phẩm nghệ thuật nhưng lại không tính công chế tác, một sản phẩm tích luỹ với giá trị nhỏ, phù hợp cho những kế hoạch tích luỹ ban đầu linh hoạt và dễ dàng tiếp cận.</p><p>&nbsp;</p><p><strong>Mua Bạc Phú Quý ở đâu?</strong><br>Bạn có thể mua bạc miếng, bạc thỏi, và đồng bạc mỹ nghệ trực tiếp tại các cửa hàng của Phú Quý trên toàn quốc hoặc thông qua website https://phuquy.com.vn. Dịch vụ mua sắm trực tuyến tiện lợi cùng chính sách giao hàng an toàn và bảo mật giúp khách hàng yên tâm giao dịch mọi lúc, mọi nơi.</p>
+                                    </div>
+                                </div>
+                    </div>
+                        <div class="col-lg-4 col-sm-0">
+                                    <div style="
+                width: 100%;
+                background-color: #d9d9d9;
+                margin-top: 205px;
+                margin-bottom: 16px;
+                "
+                                            class="position-relative">
+                                        <a href="https://phuquy.com.vn">
+                                            <img style="width: 100%; height: 100%; object-fit: cover;"
+                                                    src="/publics/images/pages/giabac/13dee3b6-a0ff-4862-b202-20f23edcd7ce.png" alt="product-media-img">
+                                        </a>
+                                    </div>
+                                    <div style=" width: 100%; background-color: #d9d9d9"
+                                            class="position-relative my-3">
+                                        <a href="https://phuquy.com.vn">
+                                            <img style="width: 100%; height: 100%; object-fit: cover;"
+                                                    src="/publics/images/pages/giabac/04d0cdca-de53-42c9-a3a7-57e05fe1d89a.png" alt="product-media-img">
+                                        </a>
+                                    </div>
+                                    <div style="width: 100%;background-color: #d9d9d9;margin-bottom: 16px;" class="position-relative">
+                                        <a href="https://phuquy.com.vn">
+                                            <img style="width: 100%; height: 100%; object-fit: cover;"
+                                                    src="/publics/images/pages/giabac/65bf6ad7-76d0-4afb-91f4-6600934e7831.png" alt="product-media-img">
+                                        </a>
+                                    </div>
+                        </div>
+                    </div>
+            </div>
+        </div>
+    </div>
+    <div class="container" style="margin-top:10px;">
+        <div class="row">
+            <div class="col-lg-8 col-sm-12 px-0">
+                <div class="px-3 mb-3" id="banner-mobile">
+                            <a href="https://phuquy.com.vn">
+                                <img style="width: 100%; height: 100%; object-fit: cover;"
+                                        src="/publics/images/pages/giabac/6bbe2740-812a-4a00-a0bf-42ed3f3df388.png" alt="product-media-img">
+                            </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="footer px-3 text-light">
+        <img class="footer-logo" src="/Content/giabac/assets/images/logo_white.png" alt="" />
+        <div class="d-flex footer-infor">
+                    <div class="col-md-3 mb-3">
+                        <p class="fw-bold mb-2">30 TRẦN NH&#194;N T&#212;NG, H&#192; NỘI</p>
+                        <p class="mb-2">Số 30 Trần Nh&#226;n T&#244;ng, P.Hai B&#224; Trưng, TP HN</p>
+                        <p>
+                            Hotline <span class="fw-bold">090.489.1213</span>
+                        </p>
+
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <p class="fw-bold mb-2">329 CẦU GIẤY, H&#192; NỘI</p>
+                        <p class="mb-2">329 Đường Cầu Giấy, P.Cầu Giấy, TP HN</p>
+                        <p>
+                            Hotline <span class="fw-bold">094.969.3030</span>
+                        </p>
+
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <p class="fw-bold mb-2">51 QUANG TRUNG, H&#192; Đ&#212;NG, H&#192; NỘI</p>
+                        <p class="mb-2">Số 51-53 Đường Quang Trung, P.H&#224; Đ&#244;ng, TP HN</p>
+                        <p>
+                            Hotline <span class="fw-bold">091.288.3030</span>
+                        </p>
+
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <p class="fw-bold mb-2">193B NAM KỲ KHỞI NGHĨA, TPHCM</p>
+                        <p class="mb-2">193B Nam Kỳ Khởi Nghĩa, P.Xu&#226;n H&#242;a, TP.HCM</p>
+                        <p>
+                            Hotline <span class="fw-bold">098.468.3030</span>
+                        </p>
+
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <p class="fw-bold mb-2">167 TRẦN N&#195;O TP HCM</p>
+                        <p class="mb-2">Số 167 Trần N&#227;o, Khu phố 10, P.An Kh&#225;nh, TP HCM</p>
+                        <p>
+                            Hotline <span class="fw-bold">096.469.3030</span>
+                        </p>
+
+                    </div>
+        </div>
+        <div class="mt-1 text-center">
+            <a href="https://phuquy.com.vn/pages/diem-ban" class="text-light fw-bold text-decoration-underline">
+                Hệ thống Đại Lý Ủy Quyền Chính Hãng Phú Quý
+            </a>
+        </div>
+    </div>
+</div>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-RE4R02FPBJ"></script>
+<script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag() { dataLayer.push(arguments); }
+    gtag('js', new Date());
+
+    gtag('config', 'G-RE4R02FPBJ');
+</script>
+<script src="/Content/giabac/library/jquery.js"></script>
+<script src="/Content/giabac/library/jquery.min.js"></script>
+<script src="/Content/giabac/library/fontawesome.js"></script>
+<script src="/Content/giabac/app.js" defer></script>
+<script src="/Content/giabac/library/bootstrap.js"></script>
+<script src="/Content/giabac/library/bootstrap.min.js"></script>
+<script>
+    $('.nav-link').on('shown.bs.tab', function (e) {
+        var target = $(e.target).data('bs-target'); // Lấy id của tab đang được chọn
+        filterData(target);
+    });
+
+    // Mặc định gọi filterData cho tab 'KG' khi trang load
+    $(document).ready(function () {
+        filterData('#pills-contact');
+    });
+
+    function filterData(target) {
+        // Logic của hàm filterData
+        console.log('Filtering data for:', target);
+        // Thực hiện các thao tác khác
+    }
+
+    function filterData(target) {
+    $.ajax({
+        url: '/SilverInfo/FilterData',
+        type: 'POST',
+        data: { filterType: target }, // Gửi id của tab hiện tại đến controller
+        success: function (response) {
+            // Xử lý kết quả trả về và cập nhật giao diện
+            $('#priceDiv').html(response);
+        },
+        error: function (error) {
+            console.log(error);
+        }
+    });
+    }
+</script>
+<script type="text/javascript" src="https://cdn.canvasjs.com/canvasjs.min.js"></script>
+<script type="text/javascript">
+    $(document).ready(function () {
+        updateChart(7, "KG");
+        updatePricePercent(7);
+    });
+
+    let currentDays = 7;   // mặc định 7D
+    let currentType = 'KG'; // mặc định Lượng
+
+    function updatePricePercent(days) {
+        $.ajax({
+            url: '/SilverInfo/GetPricePercentFromSQLPartial', // Action bạn muốn gọi
+            type: 'GET',
+            data: { days: days }, // Truyền tham số days
+            success: function (result) {
+                // Thay thế nội dung của phần tử HTML bằng partial view trả về
+                $('#price-percent-partial').html(result);
+            },
+            error: function (xhr, status, error) {
+                console.error('Error: ' + error);
+            }
+        });
+    }
+    function updateChart(days, type) {
+        $.ajax({
+            url: '/SilverInfo/GetGoldPriceChartFromSQLData',
+            type: 'GET',
+            data: { days: days, type: type },
+            success: function (data) {
+
+                if (!data || !data.Dates || data.Dates.length === 0) {
+                    $("#chartContainer").html("<div class='text-center text-muted'>Không có dữ liệu</div>");
+                    return;
+                }
+
+                var dataPointsBuy = data.LastBuyPrices.map((price, index) => ({
+                    x: new Date(data.Dates[index]),
+                    y: price
+                }));
+
+                var dataPointsSell = data.LastSellPrices.map((price, index) => ({
+                    x: new Date(data.Dates[index]),
+                    y: price
+                }));
+
+                var chart = new CanvasJS.Chart("chartContainer", {
+                    theme: "light2",
+                    zoomEnabled: true,
+                    animationEnabled: true,
+                    axisX: {
+                        valueFormatString: days === 1 ? "DD MMM, HH:mm" : "DD MMM",
+                        intervalType: days === 1 ? "hour" : "day"
+                    },
+                    axisY: {
+                        title: data.Type,
+                        includeZero: false,
+                        labelFormatter: function (e) {
+                            return (e.value / 1000).toLocaleString();
+                        }
+                    },
+                    data: [
+                        {
+                            type: "line",
+                            name: "Giá mua vào",
+                            showInLegend: true,
+                            dataPoints: dataPointsBuy,
+                            type: "area",
+                            fillOpacity: .3,
+                        },
+                        {
+                            type: "line",
+                            name: "Giá bán ra",
+                            showInLegend: true,
+                            dataPoints: dataPointsSell,
+                            type: "area",
+                            fillOpacity: .3,
+                        }
+                    ]
+                });
+
+                chart.render();
+            }
+        });
+    }
+
+    $('#pills-days-tab .nav-link').on('click', function () {
+        $('#pills-days-tab .nav-link').attr('aria-selected', 'false');
+        $(this).attr('aria-selected', 'true');
+
+        $('#pills-days-tab .nav-link').removeClass('active');
+        $(this).addClass('active');
+
+        switch ($(this).attr('id')) {
+            case 'button-1D':
+                currentDays = 1;
+                break;
+            case 'button-7D':
+                currentDays = 7;
+                break;
+            case 'button-1M':
+                currentDays = 30;
+                break;
+            case 'button-3M':
+                currentDays = 90;
+                break;
+            case 'button-1Y':
+                currentDays = 365;
+                break;
+            default:
+                currentDays = 7;
+                break;
+        }
+        updateChart(currentDays, currentType);
+        updatePricePercent(currentDays);
+    });
+
+    $('#pills-tab .nav-link').on('click', function () {
+
+        $('#pills-tab .nav-link').removeClass('active');
+        $(this).addClass('active');
+
+        switch ($(this).attr('id')) {
+            case 'pills-home-tab':     // Chỉ
+                currentType = 'C';
+                break;
+            case 'pills-profile-tab':  // Lượng
+                currentType = 'L';
+                break;
+            case 'pills-contact-tab':  // KG
+                currentType = 'KG';
+                break;
+            default:
+                currentType = 'KG';
+                break;
+        }
+        updateChart(currentDays, currentType);
+    });
+</script>
+</body>
+</html>

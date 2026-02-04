@@ -381,6 +381,30 @@ button {
     color: var(--danger);
 }
 
+/* Spread Calculator Colors */
+.spread-low {
+    color: var(--success);
+    font-weight: 600;
+}
+
+.spread-medium {
+    color: var(--warning);
+}
+
+.spread-high {
+    color: var(--danger);
+    font-weight: 600;
+}
+
+.best-spread-row {
+    background: rgba(16, 185, 129, 0.1) !important;
+    border-left: 3px solid var(--success);
+}
+
+.best-spread-row td:first-child::before {
+    content: '🏆 ';
+}
+
 /* ===================================
    Charting
    =================================== */
@@ -1221,6 +1245,411 @@ select:focus {
     padding: 0.5rem 1.5rem 1rem;
     font-size: 0.8rem;
     color: var(--text-muted);
+}
+
+/* ===================================
+   AI Buy Score Widget
+   =================================== */
+.buy-score-section {
+    margin: 1.5rem 0;
+}
+
+.buy-score-card {
+    background: rgba(20, 15, 25, 0.95);
+    border: 1px solid rgba(255, 215, 0, 0.2);
+}
+
+.buy-score-card .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.buy-score-asset {
+    background: var(--silver-glow);
+    color: var(--silver-primary);
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.buy-score-content {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    padding: 1.5rem;
+}
+
+.buy-score-gauge {
+    position: relative;
+    width: 140px;
+    height: 140px;
+    flex-shrink: 0;
+}
+
+.gauge-ring {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: rgba(50, 50, 70, 0.5);
+    position: relative;
+    overflow: hidden;
+}
+
+.gauge-fill {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: conic-gradient(from 180deg,
+            var(--danger) 0deg,
+            var(--warning) 90deg,
+            var(--success) 180deg,
+            var(--success) 270deg,
+            var(--danger) 360deg);
+    mask: radial-gradient(farthest-side, transparent calc(100% - 12px), #fff calc(100% - 12px));
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 12px), #fff calc(100% - 12px));
+    opacity: 0.3;
+}
+
+.gauge-ring::after {
+    content: '';
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: var(--gold-primary);
+    border-radius: 50%;
+    top: 50%;
+    left: 50%;
+    transform-origin: 0 0;
+    transform: rotate(calc(var(--score-angle, 0) * 1deg)) translateX(60px) translateY(-4px);
+    box-shadow: 0 0 10px var(--gold-primary);
+    transition: transform 1s ease-out;
+}
+
+.gauge-center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+}
+
+.gauge-score {
+    display: block;
+    font-size: 2.5rem;
+    font-weight: 700;
+    font-family: var(--font-heading);
+    color: var(--text-primary);
+    line-height: 1;
+}
+
+.gauge-label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+}
+
+/* Score color variations */
+.buy-score-card[data-score-level="high"] .gauge-score {
+    color: var(--success);
+}
+
+.buy-score-card[data-score-level="medium"] .gauge-score {
+    color: var(--warning);
+}
+
+.buy-score-card[data-score-level="low"] .gauge-score {
+    color: var(--danger);
+}
+
+.buy-score-recommendation {
+    flex: 1;
+    font-size: 1rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+/* Factors Section */
+.buy-score-factors {
+    display: none;
+    padding: 0 1.5rem 1rem;
+}
+
+.buy-score-factors.expanded {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0.75rem;
+}
+
+.factor-card {
+    background: rgba(40, 35, 55, 0.5);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    border-left: 3px solid var(--gold-primary);
+}
+
+.factor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.25rem;
+}
+
+.factor-name {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+}
+
+.factor-points {
+    font-size: 0.85rem;
+    color: var(--gold-primary);
+    font-weight: 600;
+}
+
+.factor-detail {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+/* Toggle Button */
+.buy-score-toggle {
+    width: 100%;
+    padding: 0.75rem;
+    background: transparent;
+    border: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.buy-score-toggle:hover {
+    background: rgba(255, 215, 0, 0.05);
+    color: var(--gold-primary);
+}
+
+.toggle-icon {
+    transition: transform 0.3s ease;
+}
+
+.buy-score-factors.expanded+.buy-score-toggle .toggle-icon {
+    transform: rotate(180deg);
+}
+
+/* ===================================
+   AI Time Machine Widget
+   =================================== */
+.time-machine-widget {
+    margin-top: 1.5rem;
+    background: rgba(30, 41, 59, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    backdrop-filter: blur(10px);
+    padding: 1rem 1.5rem;
+}
+
+.time-machine-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.tm-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.tm-refresh-btn {
+    background: transparent;
+    border: 1px solid rgba(255, 215, 0, 0.3);
+    color: var(--gold-primary);
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: all 0.2s ease;
+}
+
+.tm-refresh-btn:hover {
+    background: rgba(255, 215, 0, 0.1);
+    transform: rotate(180deg);
+}
+
+.time-machine-predictions {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+}
+
+.tm-loading {
+    grid-column: 1 / -1;
+    text-align: center;
+    color: var(--text-muted);
+    padding: 1rem;
+}
+
+.tm-prediction-card {
+    background: rgba(15, 23, 42, 0.6);
+    border-radius: 10px;
+    padding: 1rem;
+    text-align: center;
+    border-left: 3px solid var(--gold-primary);
+    transition: all 0.2s ease;
+}
+
+.tm-prediction-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.tm-prediction-card.up {
+    border-left-color: var(--success);
+}
+
+.tm-prediction-card.down {
+    border-left-color: var(--danger);
+}
+
+.tm-days {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+}
+
+.tm-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+}
+
+.tm-change {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.tm-change.positive {
+    color: var(--success);
+}
+
+.tm-change.negative {
+    color: var(--danger);
+}
+
+.tm-confidence {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-top: 0.5rem;
+}
+
+.time-machine-note {
+    margin-top: 1rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-align: center;
+    font-style: italic;
+}
+
+/* ===================================
+   Tools Package: Savings + Allocation
+   =================================== */
+.tools-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+.savings-comparison-widget,
+.allocation-chart-widget {
+    background: rgba(30, 41, 59, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    backdrop-filter: blur(10px);
+    padding: 1rem;
+}
+
+.widget-header {
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.widget-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.savings-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.savings-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.savings-label {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+.savings-value {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.savings-result {
+    margin-top: 0.75rem;
+    padding: 0.75rem;
+    border-radius: 8px;
+    text-align: center;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.savings-result.positive {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--success);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.savings-result.negative {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--danger);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.allocation-chart-container {
+    height: 150px;
+    position: relative;
+}
+
+@media (max-width: 768px) {
+    .tools-row {
+        grid-template-columns: 1fr;
+    }
 }
 
 /* ===================================

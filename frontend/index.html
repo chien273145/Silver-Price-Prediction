@@ -170,6 +170,52 @@
                         </div>
                     </div>
 
+                    <!-- AI Time Machine Widget -->
+                    <div class="time-machine-widget">
+                        <div class="time-machine-header">
+                            <span class="tm-title">🔮 AI Time Machine</span>
+                            <button class="tm-refresh-btn" onclick="loadTimeMachine()" title="Làm mới dự báo">↻</button>
+                        </div>
+                        <div class="time-machine-predictions" id="timeMachinePredictions">
+                            <div class="tm-loading">Đang tính toán dự báo tương lai...</div>
+                        </div>
+                        <div class="time-machine-note">
+                            *Dự báo dựa trên AI model với độ chính xác ~97%
+                        </div>
+                    </div>
+
+                    <!-- Savings Comparison Widget -->
+                    <div class="tools-row">
+                        <div class="savings-comparison-widget">
+                            <div class="widget-header">
+                                <span class="widget-title">💰 So sánh với Tiết kiệm</span>
+                            </div>
+                            <div class="savings-content" id="savingsComparisonContent">
+                                <div class="savings-row">
+                                    <span class="savings-label">ROI của bạn:</span>
+                                    <span class="savings-value" id="portfolioROI">--</span>
+                                </div>
+                                <div class="savings-row">
+                                    <span class="savings-label">Lãi suất NH (5%/năm):</span>
+                                    <span class="savings-value" id="bankInterest">--</span>
+                                </div>
+                                <div class="savings-result" id="savingsResult">
+                                    Thêm giao dịch để so sánh
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Allocation Chart -->
+                        <div class="allocation-chart-widget">
+                            <div class="widget-header">
+                                <span class="widget-title">📊 Phân bổ Tài sản</span>
+                            </div>
+                            <div class="allocation-chart-container">
+                                <canvas id="allocationChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Filter Tabs -->
                     <div class="portfolio-tabs">
                         <button class="p-tab active" data-filter="all">Tất cả</button>
@@ -203,6 +249,38 @@
                     </div>
                 </div>
             </section>
+
+            <!-- AI Buy Score Section -->
+            <section class="buy-score-section" style="margin-bottom: 2rem;">
+                <div class="card buy-score-card">
+                    <div class="card-header">
+                        <span class="card-label">🤖 AI Buy Score</span>
+                        <span class="buy-score-asset" id="buyScoreAsset">Bạc</span>
+                    </div>
+                    <div class="buy-score-content">
+                        <div class="buy-score-gauge">
+                            <div class="gauge-ring" id="buyScoreRing">
+                                <div class="gauge-fill" id="buyScoreFill"></div>
+                            </div>
+                            <div class="gauge-center">
+                                <span class="gauge-score" id="buyScoreValue">--</span>
+                                <span class="gauge-label" id="buyScoreLabel">Đang tính...</span>
+                            </div>
+                        </div>
+                        <div class="buy-score-recommendation" id="buyScoreRecommendation">
+                            Đang phân tích điều kiện thị trường...
+                        </div>
+                    </div>
+                    <div class="buy-score-factors" id="buyScoreFactors">
+                        <!-- Factors populated by JS -->
+                    </div>
+                    <button class="buy-score-toggle" onclick="toggleBuyScoreFactors()">
+                        <span id="buyScoreToggleText">Xem chi tiết</span>
+                        <span class="toggle-icon">▼</span>
+                    </button>
+                </div>
+            </section>
+
             <!-- Price Cards -->
             <section class="price-cards">
                 <div class="card price-card current-price">

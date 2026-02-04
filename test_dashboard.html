@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Dashboard</title>
+    <style>
+        body { font-family: Arial; margin: 20px; background: #1a1a1a; color: white; }
+        .test-card { background: #2a2a2a; padding: 20px; margin: 20px 0; border-radius: 10px; }
+        .success { color: #4ade80; }
+        .error { color: #f87171; }
+        button { background: #3b82f6; color: white; padding: 10px 20px; border: none; border-radius: 5px; margin: 5px; cursor: pointer; }
+        button:hover { background: #2563eb; }
+    </style>
+</head>
+<body>
+    <h1>🥈 Silver Price AI - Test Dashboard</h1>
+    
+    <div class="test-card">
+        <h2>📊 API Tests</h2>
+        <button onclick="testPredictions()">Test Predictions</button>
+        <button onclick="testFearGreed()">Test Fear & Greed</button>
+        <button onclick="testPerformance()">Test Performance</button>
+        <button onclick="testRealtime()">Test Realtime</button>
+        
+        <div id="results"></div>
+    </div>
+    
+    <div class="test-card">
+        <h2>🎯 Quick Access</h2>
+        <p>Server đang chạy trên: <a href="http://localhost:8002" target="_blank">http://localhost:8002</a></p>
+        <button onclick="window.open('http://localhost:8002', '_blank')">🚀 Mở Dashboard</button>
+    </div>
+
+    <script>
+        const BASE_URL = 'http://localhost:8002';
+        const results = document.getElementById('results');
+        
+        async function testAPI(endpoint, name) {
+            try {
+                const response = await fetch(BASE_URL + endpoint);
+                const data = await response.json();
+                
+                results.innerHTML += `<div class="test-card">
+                    <h3 class="success">✅ ${name} - SUCCESS</h3>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                </div>`;
+            } catch (error) {
+                results.innerHTML += `<div class="test-card">
+                    <h3 class="error">❌ ${name} - ERROR</h3>
+                    <p>${error.message}</p>
+                </div>`;
+            }
+        }
+        
+        function testPredictions() {
+            testAPI('/api/predict?currency=VND', 'Predictions API');
+        }
+        
+        function testFearGreed() {
+            testAPI('/api/fear-greed', 'Fear & Greed API');
+        }
+        
+        function testPerformance() {
+            testAPI('/api/performance-transparency', 'Performance Transparency API');
+        }
+        
+        function testRealtime() {
+            testAPI('/api/realtime', 'Realtime API');
+        }
+        
+        // Auto-test on load
+        window.onload = () => {
+            setTimeout(testPredictions, 500);
+            setTimeout(testFearGreed, 1000);
+            setTimeout(testPerformance, 1500);
+            setTimeout(testRealtime, 2000);
+        };
+    </script>
+</body>
+</html>

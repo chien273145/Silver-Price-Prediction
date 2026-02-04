@@ -273,3 +273,292 @@ document.addEventListener('DOMContentLoaded', () => {
 // Expose update function to global scope so app.js can call it when data loads
 window.updatePortfolioUI = updatePortfolioUI;
 
+// ============================================
+// AI Time Machine Functions
+// ============================================
+
+/**
+ * Load Time Machine predictions from API
+ */
+async function loadTimeMachine() {
+    const container = document.getElementById('timeMachinePredictions');
+    if (!container) return;
+
+    container.innerHTML = '<div class="tm-loading">Đang tính toán dự báo tương lai...</div>';
+
+    try {
+        // Get portfolio items
+        const items = portfolioManager.transactions.map(tx => ({
+            id: tx.id,
+            asset_type: tx.asset,
+            brand: tx.brand,
+            quantity: parseFloat(tx.amount) || 0,
+            buy_price: parseFloat(tx.price) || 0,
+            buy_date: tx.date,
+        }));
+
+        if (items.length === 0) {
+            container.innerHTML = '<div class="tm-loading">Thêm tài sản vào portfolio để xem dự báo tương lai</div>';
+            return;
+        }
+
+        const response = await fetch(`${window.location.origin}/api/time-machine`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items })
+        });
+
+        const data = await response.json();
+
+        if (data.success && data.data) {
+            displayTimeMachine(data.data);
+        } else {
+            container.innerHTML = '<div class="tm-loading">Không thể tải dự báo</div>';
+        }
+    } catch (error) {
+        console.error('Time Machine error:', error);
+        container.innerHTML = '<div class="tm-loading">Lỗi kết nối</div>';
+    }
+}
+
+/**
+ * Display Time Machine predictions
+ */
+function displayTimeMachine(data) {
+    const container = document.getElementById('timeMachinePredictions');
+    if (!container) return;
+
+    if (!data.predictions || data.predictions.length === 0) {
+        container.innerHTML = '<div class="tm-loading">Không có dữ liệu dự báo</div>';
+        return;
+    }
+
+    const formatVND = (value) => {
+        if (value >= 1_000_000_000) {
+            return (value / 1_000_000_000).toFixed(2) + ' tỷ';
+        } else if (value >= 1_000_000) {
+            return (value / 1_000_000).toFixed(1) + ' tr';
+        } else {
+            return new Intl.NumberFormat('vi-VN').format(value);
+        }
+    };
+
+    const html = data.predictions.map(pred => {
+        const isPositive = pred.change_percent >= 0;
+        const cardClass = isPositive ? 'up' : 'down';
+        const changeClass = isPositive ? 'positive' : 'negative';
+        const changeSign = isPositive ? '+' : '';
+
+        return `
+            <div class="tm-prediction-card ${cardClass}">
+                <div class="tm-days">${pred.days} ngày (${pred.date})</div>
+                <div class="tm-value">${formatVND(pred.predicted_value)} ₫</div>
+                <div class="tm-change ${changeClass}">
+                    ${changeSign}${formatVND(pred.change_amount)} (${changeSign}${pred.change_percent}%)
+                </div>
+                <div class="tm-confidence">
+                    ± ${formatVND(pred.confidence_max - pred.predicted_value)}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    container.innerHTML = html;
+}
+
+// Expose to global scope
+window.loadTimeMachine = loadTimeMachine;
+
+// Auto-load Time Machine after portfolio loads
+document.addEventListener('portfolioUpdated', () => {
+    setTimeout(loadTimeMachine, 500);
+    updateSavingsComparison();
+    updateAllocationChart();
+});
+
+// Initial load after 3 seconds (after prices are fetched)
+setTimeout(loadTimeMachine, 3000);
+
+
+// ============================================
+// Savings Comparison Calculator
+// ============================================
+
+const BANK_INTEREST_RATE = 0.05; // 5% annual
+
+function updateSavingsComparison() {
+    const roiEl = document.getElementById('portfolioROI');
+    const bankEl = document.getElementById('bankInterest');
+    const resultEl = document.getElementById('savingsResult');
+
+    if (!roiEl || !resultEl) return;
+
+    const transactions = portfolioManager.transactions;
+    if (transactions.length === 0) {
+        resultEl.textContent = 'Thêm giao dịch để so sánh';
+        resultEl.className = 'savings-result';
+        return;
+    }
+
+    // Calculate portfolio stats
+    let totalInvested = 0;
+    let totalCurrentValue = 0;
+    let totalDays = 0;
+
+    transactions.forEach(tx => {
+        const invested = (parseFloat(tx.amount) || 0) * (parseFloat(tx.price) || 0);
+        totalInvested += invested;
+
+        // Get current price from window.latestLocalPrices
+        const currentPrice = getCurrentPriceForTransaction(tx);
+        const currentValue = (parseFloat(tx.amount) || 0) * currentPrice;
+        totalCurrentValue += currentValue;
+
+        // Calculate days since purchase
+        if (tx.date) {
+            const buyDate = new Date(tx.date);
+            const today = new Date();
+            const days = Math.floor((today - buyDate) / (1000 * 60 * 60 * 24));
+            totalDays = Math.max(totalDays, days);
+        }
+    });
+
+    if (totalInvested === 0) {
+        resultEl.textContent = 'Thêm giao dịch để so sánh';
+        resultEl.className = 'savings-result';
+        return;
+    }
+
+    // Calculate actual ROI
+    const actualROI = ((totalCurrentValue - totalInvested) / totalInvested) * 100;
+
+    // Calculate what bank savings would give
+    const years = Math.max(totalDays / 365, 0.01);
+    const bankGains = totalInvested * BANK_INTEREST_RATE * years;
+    const bankROI = (bankGains / totalInvested) * 100;
+
+    // Display
+    const formatPercent = (val) => (val >= 0 ? '+' : '') + val.toFixed(2) + '%';
+
+    roiEl.textContent = formatPercent(actualROI);
+    roiEl.style.color = actualROI >= 0 ? 'var(--success)' : 'var(--danger)';
+
+    bankEl.textContent = formatPercent(bankROI);
+
+    // Compare result
+    const diff = actualROI - bankROI;
+    if (diff > 0) {
+        resultEl.textContent = `🎉 Vượt trội hơn tiết kiệm ${diff.toFixed(2)}%`;
+        resultEl.className = 'savings-result positive';
+    } else {
+        resultEl.textContent = `📉 Thua tiết kiệm ${Math.abs(diff).toFixed(2)}%`;
+        resultEl.className = 'savings-result negative';
+    }
+}
+
+function getCurrentPriceForTransaction(tx) {
+    if (!window.latestLocalPrices || !window.latestLocalPrices.items) return 0;
+
+    const assetType = tx.asset;
+    const brand = tx.brand;
+
+    const items = window.latestLocalPrices.items.filter(item => {
+        const prodName = item.product_type.toUpperCase();
+        if (assetType === 'gold') {
+            return !prodName.includes('BẠC') || prodName.includes('BẠC LIÊU');
+        } else {
+            return (prodName.includes('BẠC') || prodName.includes('SILVER')) && !prodName.includes('VÀNG');
+        }
+    });
+
+    // Try to match brand
+    const match = items.find(i => i.brand.toLowerCase() === brand.toLowerCase());
+    if (match) return match.sell_price;
+
+    // Fallback to first item
+    return items.length > 0 ? items[0].sell_price : 0;
+}
+
+
+// ============================================
+// Allocation Pie Chart
+// ============================================
+
+let allocationChart = null;
+
+function updateAllocationChart() {
+    const canvas = document.getElementById('allocationChart');
+    if (!canvas) return;
+
+    const transactions = portfolioManager.transactions;
+
+    if (transactions.length === 0 || typeof Chart === 'undefined') {
+        return;
+    }
+
+    // Calculate allocation by asset type
+    const allocation = { gold: 0, silver: 0 };
+
+    transactions.forEach(tx => {
+        const value = (parseFloat(tx.amount) || 0) * (parseFloat(tx.price) || 0);
+        const asset = tx.asset || 'silver';
+        allocation[asset] = (allocation[asset] || 0) + value;
+    });
+
+    const total = allocation.gold + allocation.silver;
+    if (total === 0) return;
+
+    const data = {
+        labels: ['Vàng', 'Bạc'],
+        datasets: [{
+            data: [allocation.gold, allocation.silver],
+            backgroundColor: ['#FFD700', '#C0C0C0'],
+            borderColor: ['rgba(255, 215, 0, 0.8)', 'rgba(192, 192, 192, 0.8)'],
+            borderWidth: 2
+        }]
+    };
+
+    const config = {
+        type: 'pie',
+        data: data,
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'right',
+                    labels: {
+                        color: '#94A3B8',
+                        boxWidth: 12,
+                        padding: 8
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function (context) {
+                            const value = context.raw;
+                            const percent = ((value / total) * 100).toFixed(1);
+                            return ` ${new Intl.NumberFormat('vi-VN').format(value)} ₫ (${percent}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    };
+
+    if (allocationChart) {
+        allocationChart.destroy();
+    }
+
+    allocationChart = new Chart(canvas, config);
+}
+
+// Expose functions
+window.updateSavingsComparison = updateSavingsComparison;
+window.updateAllocationChart = updateAllocationChart;
+
+// Initial load
+setTimeout(() => {
+    updateSavingsComparison();
+    updateAllocationChart();
+}, 3500);

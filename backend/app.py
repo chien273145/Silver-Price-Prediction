@@ -24,6 +24,8 @@ from src.enhanced_predictor import EnhancedPredictor
 from src.gold_predictor import GoldPredictor
 from backend.realtime_data import RealTimeDataFetcher
 from src.scrapers.service import get_price_service
+from src.buy_score import calculate_buy_score
+from src.time_machine import predict_portfolio_future
 
 
 # Global instances
@@ -1251,3 +1253,249 @@ async def get_local_prices():
     service = get_price_service()
     data = await service.fetch_all()
     return {'success': True, 'data': data}
+
+
+@app.get('/api/buy-score')
+async def get_buy_score(asset: str = Query("silver", description="Asset type: 'gold' or 'silver'")):
+    """
+    Calculate AI Buy Score (0-100) indicating whether it's a good time to buy.
+    
+    Returns:
+        - score: 0-100 overall score
+        - label: "Rất tốt", "Khá tốt", "Trung bình", "Chưa nên"
+        - factors: Breakdown of scoring factors
+        - recommendation: Natural language advice
+    """
+    try:
+        # Gather data from various sources
+        spread = None
+        ai_prediction_change = None
+        usd_change = None
+        vix_value = None
+        current_price = None
+        avg_7day_price = None
+        
+        # 1. Get realtime data (USD, VIX)
+        if data_fetcher:
+            try:
+                realtime = await data_fetcher.get_all_data()
+                if realtime:
+                    # USD change
+                    if 'usd_vnd' in realtime and realtime['usd_vnd']:
+                        usd_data = realtime['usd_vnd']
+                        if usd_data.get('change_percent'):
+                            usd_change = usd_data['change_percent']
+                    
+                    # VIX
+                    if 'vix' in realtime and realtime['vix']:
+                        vix_value = realtime['vix'].get('value')
+            except Exception as e:
+                print(f"Buy Score: Error fetching realtime: {e}")
+        
+        # 2. Get predictions for AI forecast
+        if asset == "gold" and gold_predictor:
+            try:
+                predictions = await gold_predictor.predict()
+                if predictions and 'predictions' in predictions:
+                    preds = predictions['predictions']
+                    if len(preds) >= 7:
+                        last_known = predictions.get('last_known', {}).get('price', preds[0]['price'])
+                        day7_price = preds[6]['price']
+                        if last_known > 0:
+                            ai_prediction_change = ((day7_price - last_known) / last_known) * 100
+            except Exception as e:
+                print(f"Buy Score: Error fetching gold predictions: {e}")
+        elif predictor:
+            try:
+                predictions = await predictor.predict()
+                if predictions and 'predictions' in predictions:
+                    preds = predictions['predictions']
+                    if len(preds) >= 7:
+                        last_known = predictions.get('last_known', {}).get('price', preds[0]['price'])
+                        day7_price = preds[6]['price']
+                        if last_known > 0:
+                            ai_prediction_change = ((day7_price - last_known) / last_known) * 100
+            except Exception as e:
+                print(f"Buy Score: Error fetching predictions: {e}")
+        
+        # 3. Get local prices for spread calculation
+        try:
+            service = get_price_service()
+            local_data = await service.fetch_all()
+            if local_data and 'items' in local_data:
+                items = local_data['items']
+                # Filter by asset type
+                asset_items = []
+                for item in items:
+                    prod_name = item.get('product_type', '').upper()
+                    if asset == "silver":
+                        if 'BẠC' in prod_name or 'SILVER' in prod_name:
+                            asset_items.append(item)
+                    else:
+                        if 'BẠC' not in prod_name or 'BẠC LIÊU' in prod_name:
+                            asset_items.append(item)
+                
+                # Calculate average spread
+                if asset_items:
+                    spreads = []
+                    for item in asset_items:
+                        buy = item.get('buy_price', 0)
+                        sell = item.get('sell_price', 0)
+                        if buy > 0 and sell > 0:
+                            spreads.append(sell - buy)
+                    if spreads:
+                        spread = sum(spreads) / len(spreads)
+                    
+                    # Current price (average of sell prices)
+                    sell_prices = [item.get('sell_price', 0) for item in asset_items if item.get('sell_price', 0) > 0]
+                    if sell_prices:
+                        current_price = sum(sell_prices) / len(sell_prices)
+        except Exception as e:
+            print(f"Buy Score: Error fetching local prices: {e}")
+        
+        # 4. Estimate 7-day average (use last known + small variation for now)
+        # In production, this would come from historical data
+        if current_price:
+            avg_7day_price = current_price * 0.995  # Assume price slightly up from 7-day avg
+        
+        # Calculate the buy score
+        result = calculate_buy_score(
+            asset_type=asset,
+            spread=spread,
+            ai_prediction_change=ai_prediction_change,
+            usd_change=usd_change,
+            vix_value=vix_value,
+            current_price=current_price,
+            avg_7day_price=avg_7day_price,
+        )
+        
+        return {
+            "success": True,
+            "data": result
+        }
+        
+    except Exception as e:
+        print(f"Buy Score Error: {e}")
+        import traceback
+        traceback.print_exc()
+        return {
+            "success": False,
+            "error": str(e),
+            "data": {
+                "score": 50,
+                "label": "Không xác định",
+                "color": "gray",
+                "factors": [],
+                "recommendation": "Không thể tính điểm do lỗi hệ thống."
+            }
+        }
+
+
+@app.post('/api/time-machine')
+async def get_time_machine_prediction(request: dict):
+    """
+    AI Time Machine - Predict future portfolio value.
+    
+    Request body:
+        {
+            "items": [
+                {"id": "1", "asset_type": "silver", "brand": "Phú Quý", "quantity": 10, "buy_price": 1500000},
+                ...
+            ]
+        }
+    
+    Returns:
+        - current_value: Current portfolio value
+        - predictions: Future values at 7, 30, 90 days
+        - confidence intervals
+    """
+    try:
+        portfolio_items = request.get('items', [])
+        
+        if not portfolio_items:
+            return {
+                "success": True,
+                "data": {
+                    "current_value": 0,
+                    "total_invested": 0,
+                    "current_profit": 0,
+                    "current_profit_percent": 0,
+                    "predictions": [],
+                    "gold_trend": "stable",
+                    "silver_trend": "stable",
+                    "message": "Portfolio trống. Thêm tài sản để xem dự báo."
+                }
+            }
+        
+        # Get current prices from local sources
+        current_gold_price = 0
+        current_silver_price = 0
+        
+        try:
+            service = get_price_service()
+            local_data = await service.fetch_all()
+            if local_data and 'items' in local_data:
+                items = local_data['items']
+                # Find best prices
+                for item in items:
+                    prod_name = item.get('product_type', '').upper()
+                    sell_price = item.get('sell_price', 0)
+                    if sell_price > 0:
+                        if 'BẠC' in prod_name or 'SILVER' in prod_name:
+                            if current_silver_price == 0:
+                                current_silver_price = sell_price
+                        elif current_gold_price == 0:
+                            current_gold_price = sell_price
+        except Exception as e:
+            print(f"Time Machine: Error fetching local prices: {e}")
+        
+        # Get AI predictions
+        gold_predictions = None
+        silver_predictions = None
+        
+        # Silver predictions
+        if predictor:
+            try:
+                pred_data = await predictor.predict()
+                if pred_data and 'predictions' in pred_data:
+                    silver_predictions = pred_data['predictions']
+            except Exception as e:
+                print(f"Time Machine: Error fetching silver predictions: {e}")
+        
+        # Gold predictions
+        if gold_predictor:
+            try:
+                pred_data = await gold_predictor.predict()
+                if pred_data and 'predictions' in pred_data:
+                    gold_predictions = pred_data['predictions']
+            except Exception as e:
+                print(f"Time Machine: Error fetching gold predictions: {e}")
+        
+        # Calculate future values
+        result = predict_portfolio_future(
+            portfolio_items=portfolio_items,
+            current_gold_price=current_gold_price,
+            current_silver_price=current_silver_price,
+            gold_predictions=gold_predictions,
+            silver_predictions=silver_predictions,
+        )
+        
+        return {
+            "success": True,
+            "data": result
+        }
+        
+    except Exception as e:
+        print(f"Time Machine Error: {e}")
+        import traceback
+        traceback.print_exc()
+        return {
+            "success": False,
+            "error": str(e),
+            "data": {
+                "current_value": 0,
+                "total_invested": 0,
+                "predictions": [],
+                "message": "Không thể tính toán do lỗi hệ thống."
+            }
+        }

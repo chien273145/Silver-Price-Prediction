@@ -1631,15 +1631,40 @@ async function fetchLocalPrices() {
 
             console.log("Filtered Items:", filteredItems);
 
-            filteredItems.forEach(item => {
+            // Sort by lowest spread (best value first)
+            const sortedItems = [...filteredItems].sort((a, b) => {
+                const spreadA = a.sell_price - a.buy_price;
+                const spreadB = b.sell_price - b.buy_price;
+                return spreadA - spreadB;
+            });
+
+            // Find min/max spread for color scaling
+            const spreads = sortedItems.map(i => i.sell_price - i.buy_price);
+            const minSpread = Math.min(...spreads);
+            const maxSpread = Math.max(...spreads);
+
+            sortedItems.forEach((item, index) => {
                 const spread = item.sell_price - item.buy_price;
+                const spreadPercent = item.sell_price > 0 ? ((spread / item.sell_price) * 100).toFixed(2) : 0;
+
+                // Color coding: green (low) to red (high)
+                let spreadClass = 'spread-medium';
+                if (spread === minSpread) {
+                    spreadClass = 'spread-low';
+                } else if (spread === maxSpread || spreadPercent > 3) {
+                    spreadClass = 'spread-high';
+                }
+
+                const isBest = index === 0 ? 'best-spread-row' : '';
+
                 const row = document.createElement('tr');
+                row.className = isBest;
                 row.innerHTML = `
                     <td><span class='brand-badge ${item.brand.toLowerCase()}'>${item.brand}</span></td>
                     <td>${item.product_type}</td>
                     <td class='price-up'>${new Intl.NumberFormat('vi-VN').format(item.buy_price)} ₫</td>
                     <td class='price-down'>${new Intl.NumberFormat('vi-VN').format(item.sell_price)} ₫</td>
-                    <td>${new Intl.NumberFormat('vi-VN').format(spread)} ₫</td>
+                    <td class='${spreadClass}'>${new Intl.NumberFormat('vi-VN').format(spread)} ₫ <small>(${spreadPercent}%)</small></td>
                 `;
                 tableBody.appendChild(row);
             });
@@ -1694,4 +1719,115 @@ async function fetchLocalPrices() {
 setTimeout(fetchLocalPrices, 1000);
 setInterval(fetchLocalPrices, 300000);
 
-console.log('App.js v2.0.2 Loaded - Fixed Syntax');
+// ========== AI BUY SCORE ==========
+async function loadBuyScore() {
+    try {
+        const asset = state.asset || 'silver';
+        const response = await fetch(`${API_BASE}/api/buy-score?asset=${asset}`);
+        const data = await response.json();
+
+        if (data.success && data.data) {
+            displayBuyScore(data.data);
+        }
+    } catch (error) {
+        console.error('Error loading buy score:', error);
+    }
+}
+
+function displayBuyScore(scoreData) {
+    const scoreEl = document.getElementById('buyScoreValue');
+    const labelEl = document.getElementById('buyScoreLabel');
+    const recommendationEl = document.getElementById('buyScoreRecommendation');
+    const factorsEl = document.getElementById('buyScoreFactors');
+    const assetEl = document.getElementById('buyScoreAsset');
+    const card = document.querySelector('.buy-score-card');
+    const ring = document.getElementById('buyScoreRing');
+
+    if (!scoreEl) return;
+
+    const score = scoreData.score;
+
+    // Update score directly (don't use animateNumber - it has currency formatting)
+    scoreEl.textContent = score;
+
+    // Update label
+    if (labelEl) labelEl.textContent = scoreData.label;
+
+    // Update recommendation
+    if (recommendationEl) recommendationEl.textContent = scoreData.recommendation;
+
+    // Update asset badge
+    if (assetEl) {
+        assetEl.textContent = scoreData.asset_type === 'gold' ? 'Vàng' : 'Bạc';
+        assetEl.style.background = scoreData.asset_type === 'gold'
+            ? 'rgba(255, 215, 0, 0.2)'
+            : 'rgba(192, 192, 192, 0.2)';
+        assetEl.style.color = scoreData.asset_type === 'gold'
+            ? 'var(--gold-primary)'
+            : 'var(--silver-primary)';
+    }
+
+    // Update card data attribute for color styling
+    if (card) {
+        if (score >= 60) {
+            card.setAttribute('data-score-level', 'high');
+        } else if (score >= 40) {
+            card.setAttribute('data-score-level', 'medium');
+        } else {
+            card.setAttribute('data-score-level', 'low');
+        }
+    }
+
+    // Animate gauge needle (score 0-100 maps to -90deg to +90deg)
+    if (ring) {
+        const angle = -90 + (score / 100) * 180;
+        ring.style.setProperty('--score-angle', angle);
+    }
+
+    // Build factors HTML
+    if (factorsEl && scoreData.factors && scoreData.factors.length > 0) {
+        const factorsHTML = scoreData.factors.map(factor => `
+            <div class="factor-card">
+                <div class="factor-header">
+                    <span class="factor-name">${factor.icon} ${factor.name}</span>
+                    <span class="factor-points">${factor.points}/${factor.max}</span>
+                </div>
+                <div class="factor-detail">${factor.detail}</div>
+            </div>
+        `).join('');
+        factorsEl.innerHTML = factorsHTML;
+    }
+}
+
+function toggleBuyScoreFactors() {
+    const factorsEl = document.getElementById('buyScoreFactors');
+    const toggleText = document.getElementById('buyScoreToggleText');
+
+    if (factorsEl) {
+        factorsEl.classList.toggle('expanded');
+        if (toggleText) {
+            toggleText.textContent = factorsEl.classList.contains('expanded')
+                ? 'Ẩn chi tiết'
+                : 'Xem chi tiết';
+        }
+    }
+}
+
+// Load buy score after initial load and refresh periodically
+setTimeout(loadBuyScore, 2000);
+setInterval(loadBuyScore, 300000); // Every 5 minutes
+
+// Also reload buy score when asset changes
+const originalToggleAsset = typeof toggleAsset === 'function' ? toggleAsset : null;
+if (originalToggleAsset) {
+    window._originalToggleAssetForBuyScore = originalToggleAsset;
+}
+
+// Hook into asset toggle to reload buy score
+document.addEventListener('click', function (e) {
+    if (e.target.classList.contains('toggle-btn')) {
+        setTimeout(loadBuyScore, 500);
+    }
+});
+
+console.log('App.js v2.0.3 Loaded - With AI Buy Score');
