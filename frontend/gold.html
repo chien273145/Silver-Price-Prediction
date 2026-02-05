@@ -403,15 +403,17 @@
                         <div class="metric-item">
                             <div class="metric-icon">🎯</div>
                             <div class="metric-info">
-                                <span class="metric-label">R² Score</span>
+                                <span class="metric-label">R² Score <span class="tooltip-icon"
+                                        data-tooltip="Độ chính xác của mô hình. Càng gần 1.0 càng tốt.">?</span></span>
                                 <span class="metric-value" id="modelR2">0.97</span>
                             </div>
                         </div>
                         <div class="metric-item">
                             <div class="metric-icon">📉</div>
                             <div class="metric-info">
-                                <span class="metric-label">MAPE</span>
-                                <span class="metric-value" id="modelMAPE">3.44%</span>
+                                <span class="metric-label">MAPE <span class="tooltip-icon"
+                                        data-tooltip="Sai số trung bình. Ví dụ 1% nghĩa là dự đoán giá 100tr có thể lệch ±1tr.">?</span></span>
+                                <span class="metric-value" id="modelMAPE">1.21%</span>
                             </div>
                         </div>
                         <div class="metric-item">
@@ -492,25 +494,11 @@
 
                 <div class="card info-card">
                     <div class="card-header">
-                        <span class="card-label">Kiến Thức</span>
-                        <h3>📚 Kiến Thức Về Vàng</h3>
+                        <span class="card-label">Góc Nhìn AI</span>
+                        <h3>🔍 AI Phân Tích Thị Trường</h3>
                     </div>
-                    <div class="info-content" id="marketFactors">
-                        <div class="factor-item">
-                            <h4>1. Lãi Suất FED</h4>
-                            <p>Khi Cục Dự trữ Liên bang Mỹ (FED) tăng lãi suất, đồng USD mạnh lên, khiến giá vàng
-                                thường giảm vì được định giá bằng USD.</p>
-                        </div>
-                        <div class="factor-item">
-                            <h4>2. Lạm Phát</h4>
-                            <p>Vàng được coi là "nơi trú ẩn an toàn" chống lại lạm phát. Khi lạm phát tăng cao,
-                                nhu cầu mua vàng thường tăng vọt.</p>
-                        </div>
-                        <div class="factor-item">
-                            <h4>3. Địa Chính Trị</h4>
-                            <p>Căng thẳng địa chính trị, chiến tranh, khủng hoảng kinh tế thường khiến giá vàng
-                                tăng do nhu cầu trú ẩn an toàn.</p>
-                        </div>
+                    <div class="info-content" id="marketAnalysisContent">
+                        <div class="analysis-loading">Đang phân tích thị trường bằng AI...</div>
                     </div>
                 </div>
             </section>
@@ -547,15 +535,16 @@
                 <div class="card subscribe-card">
                     <div class="subscribe-content">
                         <div class="subscribe-text">
-                            <h3>📧 Nhận Dự Đoán Giá Vàng Hàng Ngày</h3>
-                            <p>Đăng ký để nhận thông báo dự đoán giá vàng và tin tức thị trường mỗi ngày.</p>
+                            <h3>⚡ Nhận cảnh báo khi Giá Vàng Biến Động</h3>
+                            <p>Đừng bỏ lỡ cơ hội! Nhận thông báo ngay khi AI phát hiện tín hiệu <strong>MUA</strong>
+                                hoặc <strong>BÁN</strong> mạnh.</p>
                         </div>
                         <form class="subscribe-form" id="subscribeForm">
-                            <input type="email" id="emailInput" placeholder="Email của bạn" required>
-                            <button type="submit" class="subscribe-btn">Đăng ký</button>
+                            <input type="email" id="emailInput" placeholder="Nhập email của bạn" required>
+                            <button type="submit" class="subscribe-btn">Nhận Cảnh Báo Ngay</button>
                         </form>
                     </div>
-                    <p class="subscribe-note">🔒 Chúng tôi tôn trọng quyền riêng tư của bạn. Không spam.</p>
+                    <p class="subscribe-note">🔒 Bảo mật tuyệt đối. Hủy đăng ký bất cứ lúc nào.</p>
                 </div>
             </section>
         </main>

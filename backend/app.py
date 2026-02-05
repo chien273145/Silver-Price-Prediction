@@ -1636,7 +1636,7 @@ async def get_buy_score(asset: str = Query("silver", description="Asset type: 'g
                 # Filter by asset type
                 asset_items = []
                 for item in items:
-                    prod_name = item.get('product_type', '').upper()
+                    prod_name = item.product_type.upper()
                     if asset == "silver":
                         if 'BẠC' in prod_name or 'SILVER' in prod_name:
                             asset_items.append(item)
@@ -1648,15 +1648,15 @@ async def get_buy_score(asset: str = Query("silver", description="Asset type: 'g
                 if asset_items:
                     spreads = []
                     for item in asset_items:
-                        buy = item.get('buy_price', 0)
-                        sell = item.get('sell_price', 0)
+                        buy = item.buy_price
+                        sell = item.sell_price
                         if buy > 0 and sell > 0:
                             spreads.append(sell - buy)
                     if spreads:
                         spread = sum(spreads) / len(spreads)
                     
                     # Current price (average of sell prices)
-                    sell_prices = [item.get('sell_price', 0) for item in asset_items if item.get('sell_price', 0) > 0]
+                    sell_prices = [item.sell_price for item in asset_items if item.sell_price > 0]
                     if sell_prices:
                         current_price = sum(sell_prices) / len(sell_prices)
         except Exception as e:
@@ -1747,8 +1747,8 @@ async def get_time_machine_prediction(request: dict):
                 items = local_data['items']
                 # Find best prices
                 for item in items:
-                    prod_name = item.get('product_type', '').upper()
-                    sell_price = item.get('sell_price', 0)
+                    prod_name = item.product_type.upper()
+                    sell_price = item.sell_price
                     if sell_price > 0:
                         if 'BẠC' in prod_name or 'SILVER' in prod_name:
                             if current_silver_price == 0:
@@ -1807,4 +1807,236 @@ async def get_time_machine_prediction(request: dict):
                 "predictions": [],
                 "message": "Không thể tính toán do lỗi hệ thống."
             }
+        }
+
+
+# ========== NEWS API (with caching) ==========
+import httpx
+from datetime import timedelta
+
+# News cache
+_news_cache = {
+    "data": None,
+    "timestamp": None,
+    "cache_duration": timedelta(hours=1)
+}
+
+NEWS_API_KEY = "6efdb5ae0c784b07a3f854c43d241f8e"
+
+@app.get("/api/news")
+async def get_gold_news(
+    asset: str = Query("gold", description="Asset type: gold or silver"),
+    lang: str = Query("vi", description="Language: vi or en")
+):
+    """
+    Fetch latest gold/silver news from NewsAPI.
+    Results are cached for 1 hour to save API quota.
+    """
+    global _news_cache
+    
+    # Check cache
+    now = datetime.now()
+    cache_key = f"{asset}_{lang}"
+    
+    if (_news_cache["data"] is not None and 
+        _news_cache.get("key") == cache_key and
+        _news_cache["timestamp"] and 
+        now - _news_cache["timestamp"] < _news_cache["cache_duration"]):
+        return {"success": True, "articles": _news_cache["data"], "cached": True}
+    
+    try:
+        # Build search query
+        if asset == "silver":
+            query = "giá bạc OR silver price" if lang == "vi" else "silver price"
+        else:
+            query = "giá vàng OR gold price OR SJC" if lang == "vi" else "gold price"
+        
+        # Fetch from NewsAPI
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                "https://newsapi.org/v2/everything",
+                params={
+                    "q": query,
+                    "apiKey": NEWS_API_KEY,
+                    "language": lang,
+                    "sortBy": "publishedAt",
+                    "pageSize": 10
+                },
+                timeout=10.0
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                articles = []
+                
+                for article in data.get("articles", [])[:8]:
+                    articles.append({
+                        "title": article.get("title", ""),
+                        "description": article.get("description", ""),
+                        "url": article.get("url", ""),
+                        "image": article.get("urlToImage", ""),
+                        "source": article.get("source", {}).get("name", ""),
+                        "publishedAt": article.get("publishedAt", "")
+                    })
+                
+                # Update cache
+                _news_cache["data"] = articles
+                _news_cache["timestamp"] = now
+                _news_cache["key"] = cache_key
+                
+                return {"success": True, "articles": articles, "cached": False}
+            else:
+                return {"success": False, "error": f"NewsAPI error: {response.status_code}"}
+                
+    except Exception as e:
+        print(f"News API Error: {e}")
+        return {"success": False, "error": str(e), "articles": []}
+
+
+# ========== MARKET ANALYSIS API ==========
+@app.get("/api/market-analysis")
+async def get_market_analysis(
+    asset: str = Query("gold", description="Asset type: gold or silver")
+):
+    """
+    AI Market Analysis - Analyzes current market conditions and provides recommendations.
+    Uses real-time data from RealTimeDataFetcher.
+    """
+    global data_fetcher, predictor, gold_predictor
+    
+    try:
+        # Get market indicators
+        indicators = {}
+        recommendation = "hold"
+        analysis_points = []
+        
+        if data_fetcher:
+            try:
+                market_data = data_fetcher.get_full_market_data()
+                
+                if market_data:
+                    # VIX (Fear Index)
+                    vix = market_data.get('vix')
+                    if vix:
+                        indicators['vix'] = {
+                            'value': round(vix, 2),
+                            'status': 'high' if vix > 25 else 'normal' if vix > 15 else 'low',
+                            'impact': 'positive' if vix > 25 else 'neutral'
+                        }
+                        if vix > 25:
+                            analysis_points.append("🔴 VIX cao (>25) - Thị trường lo ngại, vàng thường tăng")
+                        elif vix < 15:
+                            analysis_points.append("🟢 VIX thấp (<15) - Thị trường ổn định")
+                        else:
+                            analysis_points.append("🟡 VIX trung bình - Theo dõi thị trường")
+                    
+                    # DXY (Dollar Index)
+                    dxy = market_data.get('dxy')
+                    if dxy:
+                        indicators['dxy'] = {
+                            'value': round(dxy, 2),
+                            'status': 'strong' if dxy > 105 else 'weak' if dxy < 100 else 'normal',
+                            'impact': 'negative' if dxy > 105 else 'positive' if dxy < 100 else 'neutral'
+                        }
+                        if dxy > 105:
+                            analysis_points.append("🔴 USD mạnh (DXY>105) - Áp lực giảm giá vàng")
+                        elif dxy < 100:
+                            analysis_points.append("🟢 USD yếu (DXY<100) - Hỗ trợ giá vàng")
+                        else:
+                            analysis_points.append("🟡 USD ổn định - Ít tác động")
+                    
+                    # Gold price
+                    gold = market_data.get('gold_close')
+                    if gold:
+                        indicators['gold'] = {
+                            'value': round(gold, 2),
+                            'unit': 'USD/oz'
+                        }
+                    
+                    # Silver price
+                    silver = market_data.get('silver_close')
+                    if silver:
+                        indicators['silver'] = {
+                            'value': round(silver, 2),
+                            'unit': 'USD/oz'
+                        }
+                        
+                        # Gold/Silver Ratio
+                        if gold and silver > 0:
+                            gs_ratio = gold / silver
+                            indicators['gold_silver_ratio'] = {
+                                'value': round(gs_ratio, 2),
+                                'status': 'high' if gs_ratio > 80 else 'low' if gs_ratio < 60 else 'normal'
+                            }
+                            if gs_ratio > 80:
+                                analysis_points.append(f"🔵 Tỷ lệ Vàng/Bạc cao ({gs_ratio:.1f}) - Bạc có thể hấp dẫn hơn")
+                            elif gs_ratio < 60:
+                                analysis_points.append(f"🔵 Tỷ lệ Vàng/Bạc thấp ({gs_ratio:.1f}) - Vàng có thể hấp dẫn hơn")
+                    
+            except Exception as e:
+                print(f"Market Analysis: Error fetching data: {e}")
+        
+        # Get AI prediction trend
+        ai_trend = "stable"
+        if asset == "gold" and gold_predictor:
+            try:
+                pred = gold_predictor.predict()
+                if pred and 'summary' in pred:
+                    ai_trend = pred['summary'].get('trend', 'stable')
+                    change_pct = pred['summary'].get('total_change_pct', 0)
+                    if change_pct > 2:
+                        analysis_points.append(f"📈 AI dự báo tăng {change_pct:.1f}% trong 7 ngày")
+                        recommendation = "buy"
+                    elif change_pct < -2:
+                        analysis_points.append(f"📉 AI dự báo giảm {abs(change_pct):.1f}% trong 7 ngày")
+                        recommendation = "wait"
+                    else:
+                        analysis_points.append(f"➡️ AI dự báo biến động nhẹ ({change_pct:+.1f}%)")
+            except Exception as e:
+                print(f"Market Analysis: Error fetching gold predictions: {e}")
+        elif predictor:
+            try:
+                pred = predictor.predict()
+                if pred and 'summary' in pred:
+                    ai_trend = pred['summary'].get('trend', 'stable')
+                    change_pct = pred['summary'].get('total_change_pct', 0)
+                    if change_pct > 2:
+                        analysis_points.append(f"📈 AI dự báo tăng {change_pct:.1f}% trong 7 ngày")
+                        recommendation = "buy"
+                    elif change_pct < -2:
+                        analysis_points.append(f"📉 AI dự báo giảm {abs(change_pct):.1f}% trong 7 ngày")
+                        recommendation = "wait"
+                    else:
+                        analysis_points.append(f"➡️ AI dự báo biến động nhẹ ({change_pct:+.1f}%)")
+            except Exception as e:
+                print(f"Market Analysis: Error fetching silver predictions: {e}")
+        
+        # Generate overall recommendation
+        recommendation_text = {
+            "buy": "🟢 Thời điểm tốt để MUA - Nhiều tín hiệu tích cực",
+            "wait": "🟡 NÊN CHỜ - Thị trường không rõ ràng",
+            "hold": "🔵 GIỮ NGUYÊN - Tiếp tục theo dõi thị trường"
+        }
+        
+        return {
+            "success": True,
+            "asset": asset,
+            "timestamp": datetime.now().isoformat(),
+            "indicators": indicators,
+            "analysis": analysis_points,
+            "recommendation": {
+                "action": recommendation,
+                "text": recommendation_text.get(recommendation, recommendation_text["hold"])
+            },
+            "ai_trend": ai_trend
+        }
+        
+    except Exception as e:
+        print(f"Market Analysis Error: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "indicators": {},
+            "analysis": ["Không thể phân tích thị trường lúc này"],
+            "recommendation": {"action": "hold", "text": "Tạm thời không có dữ liệu"}
         }

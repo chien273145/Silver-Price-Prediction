@@ -19,6 +19,8 @@ const state = {
     historical: null,
     realtime: null,
     modelInfo: null,
+    news: null,
+    marketAnalysis: null,
     chart: null,
     fearGreedChart: null,
     refreshInterval: null
@@ -150,6 +152,91 @@ async function fetchFearGreedIndex() {
         console.error('Error fetching Fear & Greed Index:', error);
         updateFearGreedGauge(50, 'NEUTRAL', '#f1c40f');
     }
+}
+
+// ========== MARKET NEWS ==========
+// ========== MARKET NEWS ==========
+// Note: News fetching is handled by loadNews() function later in the file
+
+
+// ========== AI MARKET ANALYSIS ==========
+async function fetchMarketAnalysis() {
+    try {
+        const container = document.getElementById('marketAnalysisContent');
+        if (container) container.innerHTML = '<div class="analysis-loading">Đang phân tích thị trường bằng AI...</div>';
+
+        const response = await fetch(`${API_BASE}/api/market-analysis?asset=${ASSET}`);
+        const data = await response.json();
+
+        if (data.success) {
+            state.marketAnalysis = data;
+            updateMarketAnalysisDisplay(data);
+        } else {
+            console.error('Failed to fetch market analysis:', data.error);
+            if (container) container.innerHTML = '<div class="analysis-error">Không thể phân tích thị trường lúc này.</div>';
+        }
+    } catch (error) {
+        console.error('Error fetching market analysis:', error);
+    }
+}
+
+function updateMarketAnalysisDisplay(data) {
+    const container = document.getElementById('marketAnalysisContent');
+    if (!container) return;
+
+    let html = `
+        <div class="ai-analysis-header">
+            <div class="ai-recommendation ${data.recommendation.action}">
+                ${data.recommendation.text}
+            </div>
+        </div>
+        <div class="analysis-grid">
+    `;
+
+    // Indicators
+    if (data.indicators) {
+        html += '<div class="analysis-indicators">';
+        if (data.indicators.vix) {
+            const vix = data.indicators.vix;
+            html += `
+                <div class="indicator-item ${vix.impact}">
+                    <span class="ind-label">Chỉ số Sợ hãi (VIX):</span>
+                    <span class="ind-value">${vix.value} (${vix.status})</span>
+                </div>
+            `;
+        }
+        if (data.indicators.dxy) {
+            const dxy = data.indicators.dxy;
+            html += `
+                <div class="indicator-item ${dxy.impact}">
+                    <span class="ind-label">Chỉ số USD (DXY):</span>
+                    <span class="ind-value">${dxy.value} (${dxy.status})</span>
+                </div>
+            `;
+        }
+        if (data.indicators.gold_silver_ratio) {
+            const gsr = data.indicators.gold_silver_ratio;
+            html += `
+                <div class="indicator-item">
+                    <span class="ind-label">Tỷ lệ Vàng/Bạc:</span>
+                    <span class="ind-value">${gsr.value} (${gsr.status})</span>
+                </div>
+            `;
+        }
+        html += '</div>';
+    }
+
+    // Analysis Points
+    if (data.analysis && data.analysis.length > 0) {
+        html += '<ul class="analysis-points">';
+        data.analysis.forEach(point => {
+            html += `<li>${point}</li>`;
+        });
+        html += '</ul>';
+    }
+
+    html += '</div>';
+    container.innerHTML = html;
 }
 
 // ========== PERFORMANCE TRANSPARENCY ==========
@@ -760,6 +847,8 @@ async function loadData() {
         fetchFearGreedIndex();
         fetchPerformanceTransparency();
         fetchMarketFactors();
+        loadNews(); // Call loadNews on data refresh
+        fetchMarketAnalysis(); // Call fetchMarketAnalysis on data refresh
 
         showToast('✅ Dữ liệu Vàng đã cập nhật', 'success');
 
@@ -1216,6 +1305,16 @@ function displayBuyScore(scoreData) {
     const score = scoreData.score;
     scoreEl.textContent = score;
 
+    // Visual Bar Logic
+    const visualBar = document.createElement('div');
+    visualBar.className = 'score-visual-bar';
+    visualBar.innerHTML = `<div class="score-visual-fill" style="width: ${score}%"></div>`;
+
+    // Insert or update visual bar
+    const existingBar = scoreEl.parentNode.querySelector('.score-visual-bar');
+    if (existingBar) existingBar.replaceWith(visualBar);
+    else scoreEl.parentNode.appendChild(visualBar);
+
     if (labelEl) labelEl.textContent = scoreData.label;
     if (recommendationEl) recommendationEl.textContent = scoreData.recommendation;
 
@@ -1241,7 +1340,7 @@ function displayBuyScore(scoreData) {
             <div class="factor-card">
                 <div class="factor-header">
                     <span class="factor-name">${factor.icon} ${factor.name}</span>
-                    <span class="factor-points">${factor.points}/${factor.max}</span>
+                    <span class="factor-points">${factor.points > 0 ? '+' + factor.points : factor.points}</span>
                 </div>
                 <div class="factor-detail">${factor.detail}</div>
             </div>
