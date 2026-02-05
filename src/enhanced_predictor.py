@@ -51,7 +51,7 @@ class EnhancedPredictor:
         
     def load_data(self):
         """Load enhanced dataset."""
-        print(f"\U0001f4ca Loading enhanced dataset from {self.data_path}...")
+        print(f"[DATA] Loading enhanced dataset from {self.data_path}...")
         
         if not os.path.exists(self.data_path):
             raise FileNotFoundError(f"Enhanced dataset not found. Run fetch_external_data.py first.")
@@ -66,7 +66,7 @@ class EnhancedPredictor:
         self.data['high'] = self.data['Silver_High']
         self.data['low'] = self.data['Silver_Low']
         
-        print(f"\n✓ Loaded {len(self.data):,} records with external features")
+        print(f"\n[OK] Loaded {len(self.data):,} records with external features")
         print(f"  Date range: {self.data['Date'].min()} to {self.data['Date'].max()}")
         
         # Check for stale data and patch if needed
@@ -75,7 +75,7 @@ class EnhancedPredictor:
         gap_days = (today - last_date).days
         
         if gap_days > 2:
-            print(f"⚠️ Data stale ({gap_days} days old). Auto-patching...")
+            print(f"[WARNING] Data stale ({gap_days} days old). Auto-patching...")
             self._patch_missing_data(last_date, gap_days)
             
     def _patch_missing_data(self, last_date, gap_days):
@@ -95,7 +95,7 @@ class EnhancedPredictor:
             hist_vix = fetcher.get_historical_prices(days=gap_days + 5, symbol=fetcher.VIX_SYMBOL)
             
             if not (hist_silver['data'] and hist_gold['data']):
-                print("❌ Failed to fetch patch data")
+                print("[ERROR] Failed to fetch patch data")
                 return
                 
             # Convert to DataFrames
@@ -151,17 +151,17 @@ class EnhancedPredictor:
                 
                 # Save back to CSV
                 self.data.to_csv(self.data_path, index=False)
-                print(f"✅ Auto-patched {len(new_data)} records and saved to CSV.")
+                print(f"[OK] Auto-patched {len(new_data)} records and saved to CSV.")
             else:
                 print("No new data to patch after filtering.")
                 
         except Exception as e:
-            print(f"❌ Error patching silver data: {e}")
+            print(f"[ERROR] Error patching silver data: {e}")
             # traceback.print_exc()
         
     def create_features(self):
         """Create all features including external data features."""
-        print("🔧 Creating features...")
+        print("[SETUP] Creating features...")
         
         df = self.data.copy()
         price = df['price']
@@ -295,11 +295,11 @@ class EnhancedPredictor:
                                 if c not in exclude_cols 
                                 and self.data[c].dtype in ['float64', 'int64', 'float32', 'int32']]
         
-        print(f"✓ Created {len(self.feature_columns)} features")
+        print(f"[OK] Created {len(self.feature_columns)} features")
         
     def train(self, test_size: float = 0.2, use_pca: bool = True, pca_variance: float = 0.95):
         """Train Ridge Regression models with optional PCA."""
-        print("\n🚀 Training Enhanced Ridge Regression models...")
+        print("\n[START] Training Enhanced Ridge Regression models...")
         
         # Prepare data
         X = self.data[self.feature_columns].values
@@ -321,13 +321,13 @@ class EnhancedPredictor:
         
         # Apply PCA
         if use_pca:
-            print(f"\n🔧 Applying PCA (keeping {pca_variance*100:.0f}% variance)...")
+            print(f"\n[SETUP] Applying PCA (keeping {pca_variance*100:.0f}% variance)...")
             self.pca = PCA(n_components=pca_variance, svd_solver='full')
             X_scaled = self.pca.fit_transform(X_scaled)
             n_components = self.pca.n_components_
             explained_var = np.sum(self.pca.explained_variance_ratio_) * 100
-            print(f"  ✓ Reduced from {len(self.feature_columns)} to {n_components} components")
-            print(f"  ✓ Explained variance: {explained_var:.1f}%")
+            print(f"  [OK] Reduced from {len(self.feature_columns)} to {n_components} components")
+            print(f"  [OK] Explained variance: {explained_var:.1f}%")
         
         # Scale targets
         y_all = np.column_stack(y_targets)
@@ -375,7 +375,7 @@ class EnhancedPredictor:
         
         avg_r2 = np.mean(test_metrics)
         
-        print(f"\n📊 Overall Metrics:")
+        print(f"\n[DATA] Overall Metrics:")
         print(f"  Average R² Score: {avg_r2:.4f}")
         print(f"  RMSE: ${rmse:.2f}")
         print(f"  MAE: ${mae:.2f}")
@@ -404,7 +404,7 @@ class EnhancedPredictor:
         
         joblib.dump(data, model_path)
         n_components = self.pca.n_components_ if self.pca else len(self.feature_columns)
-        print(f"\n✓ Saved enhanced model to {model_path} ({n_components} components)")
+        print(f"\n[OK] Saved enhanced model to {model_path} ({n_components} components)")
         
     def load_model(self):
         """Load trained model."""
@@ -421,7 +421,7 @@ class EnhancedPredictor:
         self.feature_columns = data['feature_columns']
         
         n_components = self.pca.n_components_ if self.pca else len(self.feature_columns)
-        print(f"✓ Loaded enhanced model ({len(self.models)} models, {n_components} components)")
+        print(f"[OK] Loaded enhanced model ({len(self.models)} models, {n_components} components)")
     
     def predict(self, in_vnd: bool = True) -> Dict:
         """Make predictions for the next 7 days."""
@@ -756,7 +756,7 @@ class EnhancedPredictor:
 def main():
     """Train enhanced model and compare with original."""
     print("=" * 60)
-    print("🚀 TRAINING ENHANCED MODEL WITH EXTERNAL FEATURES")
+    print("[START] TRAINING ENHANCED MODEL WITH EXTERNAL FEATURES")
     print("=" * 60)
     
     # Initialize
@@ -793,11 +793,11 @@ def main():
     with open(info_path, 'w') as f:
         json.dump(info, f, indent=2)
     
-    print(f"\n✓ Saved training info to {info_path}")
+    print(f"\n[OK] Saved training info to {info_path}")
     
     # Compare with original model
     print("\n" + "=" * 60)
-    print("📊 COMPARISON WITH ORIGINAL MODEL")
+    print("[DATA] COMPARISON WITH ORIGINAL MODEL")
     print("=" * 60)
     print(f"\n{'Metric':<20} {'Original':<15} {'Enhanced':<15} {'Improvement':<15}")
     print("-" * 65)

@@ -804,6 +804,144 @@ function updateChart() {
     });
 }
 
+// Local Prices
+async function fetchLocalPrices() {
+    try {
+        const response = await fetch(`${API_BASE}/api/prices/local`);
+        const data = await response.json();
+
+        if (data.success) {
+            window.latestLocalPrices = data.data; // Store for portfolio
+            updateLocalPricesTable(data.data);
+
+            // Dispatch event for portfolio update
+            document.dispatchEvent(new CustomEvent('portfolioUpdated'));
+        }
+    } catch (error) {
+        console.error('Error fetching local prices:', error);
+    }
+}
+
+function updateLocalPricesTable(data) {
+    const tbody = document.getElementById('localPriceTableBody');
+    const timeDisplay = document.getElementById('localPriceTime');
+
+    if (!tbody) return;
+
+    if (!data.items || data.items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="error-cell">Không có dữ liệu giá</td></tr>';
+        return;
+    }
+
+    // Filter for Gold products only
+    const goldItems = data.items.filter(item => {
+        const type = item.product_type.toUpperCase();
+        return !type.includes('BẠC') && !type.includes('SILVER');
+    });
+
+    if (goldItems.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="info-cell">Chưa có dữ liệu giá vàng hôm nay</td></tr>';
+        return;
+    }
+
+    let html = '';
+    goldItems.forEach(item => {
+        const buy = item.buy_price;
+        const sell = item.sell_price;
+        const spread = sell - buy;
+
+        // Brand Badge Color
+        let brandBadge = '';
+        if (item.brand === 'SJC') brandBadge = 'badge-sjc';
+        else if (item.brand === 'DOJI') brandBadge = 'badge-doji';
+        else if (item.brand === 'PNJ') brandBadge = 'badge-pnj';
+
+        html += `
+            <tr>
+                <td><span class="brand-badge ${brandBadge}">${item.brand}</span></td>
+                <td>${item.product_type}</td>
+                <td class="price-buy">${formatPrice(buy)}</td>
+                <td class="price-sell">${formatPrice(sell)}</td>
+                <td class="price-spread">${formatPrice(spread)}</td>
+            </tr>
+        `;
+    });
+
+    tbody.innerHTML = html;
+
+    if (timeDisplay && data.updated_at) {
+        const date = new Date(data.updated_at);
+        timeDisplay.textContent = `Cập nhật: ${date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`;
+    }
+}
+
+// Market Analysis
+async function fetchMarketAnalysis() {
+    try {
+        const response = await fetch(`${API_BASE}/api/market-analysis?asset=gold`);
+        const data = await response.json();
+
+        if (data.success && data.analysis) {
+            updateMarketAnalysis(data.analysis);
+        } else {
+            const container = document.getElementById('marketAnalysisContent');
+            if (container) container.innerHTML = '<div class="analysis-error">Chưa có dữ liệu phân tích</div>';
+        }
+    } catch (error) {
+        console.error('Error loading market analysis:', error);
+        const container = document.getElementById('marketAnalysisContent');
+        if (container) container.innerHTML = '<div class="analysis-error">Lỗi kết nối</div>';
+    }
+}
+
+function updateMarketAnalysis(analysis) {
+    const container = document.getElementById('marketAnalysisContent');
+    if (!container) return;
+
+    let html = `
+        <div class="analysis-summary">
+            <div class="analysis-header">
+                <span class="analysis-trend ${analysis.trend === 'bullish' ? 'trend-up' : analysis.trend === 'bearish' ? 'trend-down' : 'trend-neutral'}">
+                    ${analysis.trend === 'bullish' ? '📈 Xu hướng Tăng' : analysis.trend === 'bearish' ? '📉 Xu hướng Giảm' : '➡️ Đi Ngang'}
+                </span>
+                <span class="analysis-confidence">Độ tin cậy: ${analysis.confidence}</span>
+            </div>
+            
+            <div class="analysis-rec-box ${analysis.recommendation.includes('MUA') ? 'rec-buy' : analysis.recommendation.includes('BÁN') ? 'rec-sell' : 'rec-hold'}">
+                <strong>KHUYẾN NGHỊ:</strong> ${analysis.recommendation}
+            </div>
+            
+            <p class="analysis-text">${analysis.summary}</p>
+        </div>
+    `;
+
+    // Indicators
+    if (analysis.indicators) {
+        html += '<div class="analysis-indicators">';
+        if (analysis.indicators.vix) {
+            const vix = analysis.indicators.vix;
+            html += `
+                <div class="indicator-item ${vix.impact}">
+                    <span class="ind-label">Chỉ số Sợ hãi (VIX):</span>
+                    <span class="ind-value">${vix.value} (${vix.status})</span>
+                </div>
+            `;
+        }
+        if (analysis.indicators.dxy) {
+            const dxy = analysis.indicators.dxy;
+            html += `
+                <div class="indicator-item ${dxy.impact}">
+                    <span class="ind-label">Chỉ số USD (DXY):</span>
+                    <span class="ind-value">${dxy.value} (${dxy.status})</span>
+                </div>
+            `;
+        }
+        html += '</div>';
+    }
+
+    container.innerHTML = html;
+}
+
 // Load all data
 async function loadData() {
     console.log('🥇 Loading Gold data...');
@@ -848,6 +986,7 @@ async function loadData() {
         fetchPerformanceTransparency();
         fetchMarketFactors();
         loadNews(); // Call loadNews on data refresh
+        fetchLocalPrices(); // Fetch local prices
         fetchMarketAnalysis(); // Call fetchMarketAnalysis on data refresh
 
         showToast('✅ Dữ liệu Vàng đã cập nhật', 'success');

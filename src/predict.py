@@ -65,7 +65,7 @@ class SilverPredictor:
         
     def load(self):
         """Load model and prepare data processor."""
-        print("🔄 Loading model and data...")
+        print("[LOADING] Loading model and data...")
         
         # Load model directly using keras
         from tensorflow import keras
@@ -301,14 +301,14 @@ def main():
     print(f"💰 Giá hiện tại: {result['last_known']['price']:,.0f} {result['unit']}")
     print(f"💱 Tỷ giá: {result['exchange_rate']:,.0f} VND/USD")
     
-    print(f"\n📊 Dự đoán:")
+    print(f"\n[DATA] Dự đoán:")
     print("-" * 50)
     for pred in result['predictions']:
-        change_symbol = "📈" if pred['change']['percentage'] > 0 else "📉"
+        change_symbol = "[UP]" if pred['change']['percentage'] > 0 else "[DOWN]"
         print(f"  Ngày {pred['day']} ({pred['date']}): {pred['price']:,.0f} VND "
               f"{change_symbol} {pred['change']['percentage']:+.2f}%")
     
-    print(f"\n📈 Tổng kết:")
+    print(f"\n[UP] Tổng kết:")
     print(f"   Xu hướng: {'Tăng ⬆️' if result['summary']['trend'] == 'up' else 'Giảm ⬇️'}")
     print(f"   Thay đổi: {result['summary']['total_change']:+,.0f} VND ({result['summary']['total_change_pct']:+.2f}%)")
     print(f"   Giá thấp nhất: {result['summary']['min_price']:,.0f} VND")

@@ -16,7 +16,7 @@ try:
     HAS_YFINANCE = True
 except ImportError:
     HAS_YFINANCE = False
-    print("⚠️ yfinance not installed. Real-time data will be limited.")
+    print("[WARNING] yfinance not installed. Real-time data will be limited.")
 
 
 class RealTimeDataFetcher:
@@ -328,10 +328,10 @@ class RealTimeDataFetcher:
                         hist = ticker.history(period=f'{days}d')
                         if not hist.empty:
                             used_symbol = sym
-                            print(f"  ✓ Fetched history using {sym}")
+                            print(f"  [OK] Fetched history using {sym}")
                             break
                     except Exception as e:
-                        print(f"  ⚠️ Failed to fetch {sym}: {e}")
+                        print(f"  [WARNING] Failed to fetch {sym}: {e}")
                         continue
                 
                 if hist is None or hist.empty:
@@ -349,7 +349,7 @@ class RealTimeDataFetcher:
                     
             except Exception as e:
                 result['error'] = str(e)
-                print(f"❌ Error in get_historical_prices: {e}")
+                print(f"[ERROR] Error in get_historical_prices: {e}")
     
     def update_csv_with_latest(self, csv_path: str) -> bool:
         """
@@ -393,7 +393,7 @@ class RealTimeDataFetcher:
                     
                     # Save
                     df.to_csv(csv_path, index=False)
-                    print(f"✓ Added {len(new_rows)} new records to {csv_path}")
+                    print(f"[OK] Added {len(new_rows)} new records to {csv_path}")
                     return True
                 else:
                     print("No new data available")
@@ -450,7 +450,7 @@ if __name__ == "__main__":
     print("Testing Real-time Data Fetcher")
     print("=" * 50)
     
-    print("\n📈 Silver Price:")
+    print("\n[CHART] Silver Price:")
     silver = fetcher.get_silver_price()
     print(json.dumps(silver, indent=2))
     
@@ -458,7 +458,7 @@ if __name__ == "__main__":
     rate = fetcher.get_usd_vnd_rate()
     print(json.dumps(rate, indent=2))
     
-    print("\n📊 Historical Data (last 7 days):")
+    print("\n[DATA] Historical Data (last 7 days):")
     hist = fetcher.get_historical_prices(7)
     print(f"   Got {len(hist['data'])} records")
     if hist['data']:

@@ -403,8 +403,20 @@ class VietnamGoldPredictor:
             latest_scaled = self.scaler.transform(latest)
             
             # Base for relative changes
-            last_date = df['date'].iloc[-1]
+            # Force start date to be today for live prediction
+            current_date = datetime.now()
+            last_date = current_date
             last_price = df['mid_price'].iloc[-1]
+            if market_data.get('timestamp'):
+                try:
+                    # If timestamp is isoformat
+                    last_date = datetime.fromisoformat(market_data['timestamp'])
+                except:
+                    pass
+            
+            # Ensure we start predicting from tomorrow
+            # If it's already late in the day, treat today as finished
+            last_date = last_date.replace(hour=0, minute=0, second=0, microsecond=0)
             
             # Predict
             predictions = []

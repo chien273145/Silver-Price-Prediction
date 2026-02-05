@@ -57,7 +57,7 @@ class UnifiedPredictor:
         
     def load(self):
         """Load model and data."""
-        print(f"🔄 Loading {self.model_type.upper()} model...")
+        print(f"[LOADING] Loading {self.model_type.upper()} model...")
         
         if self.model_type == 'ridge':
             self._load_ridge()
@@ -65,7 +65,7 @@ class UnifiedPredictor:
             self._load_lstm()
         
         self._load_data()
-        print("✓ Model and data loaded successfully")
+        print("[OK] Model and data loaded successfully")
         
     def _load_ridge(self):
         """Load Ridge Regression models."""
@@ -80,7 +80,7 @@ class UnifiedPredictor:
         self.target_scaler = data['target_scaler']
         self.feature_columns = data['feature_columns']
         
-        print(f"✓ Loaded Ridge models ({len(self.models)} models, {len(self.feature_columns)} features)")
+        print(f"[OK] Loaded Ridge models ({len(self.models)} models, {len(self.feature_columns)} features)")
         
     def _load_lstm(self):
         """Load LSTM model."""
@@ -99,7 +99,7 @@ class UnifiedPredictor:
             self.scaler = scaler_data
             self.feature_columns = ['price']
         
-        print(f"✓ Loaded LSTM model")
+        print(f"[OK] Loaded LSTM model")
         
     def _load_data(self):
         """Load and prepare data."""
@@ -125,7 +125,7 @@ class UnifiedPredictor:
         if self.model_type == 'ridge':
             self._create_ridge_features()
         
-        print(f"✓ Loaded {len(self.data):,} records")
+        print(f"[OK] Loaded {len(self.data):,} records")
         
     def _create_ridge_features(self):
         """Create features for Ridge model."""
@@ -209,7 +209,7 @@ class UnifiedPredictor:
     def set_exchange_rate(self, rate: float):
         """Set USD to VND exchange rate."""
         self.usd_vnd_rate = rate
-        print(f"✓ Exchange rate set to: {rate:,.0f} VND/USD")
+        print(f"[OK] Exchange rate set to: {rate:,.0f} VND/USD")
         
     def predict(self, in_vnd: bool = True) -> Dict:
         """Make predictions for the next 7 days."""
@@ -224,7 +224,7 @@ class UnifiedPredictor:
             if realtime_data.get('price'):
                 current_price = realtime_data['price']
                 current_date = datetime.now()
-                print(f"✓ Using real-time price: ${current_price} ({realtime_data.get('symbol')})")
+                print(f"[OK] Using real-time price: ${current_price} ({realtime_data.get('symbol')})")
                 
                 # Update the last row of data or append new row
                 last_date = self.data['date'].iloc[-1]
@@ -249,7 +249,7 @@ class UnifiedPredictor:
                         self._create_ridge_features()
                         
         except Exception as e:
-            print(f"⚠️ Could not fetch real-time data: {e}")
+            print(f"[WARNING] Could not fetch real-time data: {e}")
             print("   Using latest historical data.")
 
         if self.model_type == 'ridge':
@@ -375,16 +375,101 @@ class UnifiedPredictor:
     def _convert_to_vnd_single(self, price_usd: float) -> float:
         """Convert a single USD price to VND with Vietnam premium."""
         return price_usd * self.troy_ounce_to_luong * self.usd_vnd_rate * self.vietnam_premium
-    
+
+    def get_market_drivers(self) -> dict:
+        """Get latest market drivers for Explainable AI."""
+        if self.data is None or len(self.data) < 2:
+            return {'factors': [], 'raw': {}}
+
+        latest = self.data.iloc[-1]
+        prev = self.data.iloc[-2]
+
+        # Helper functions
+        def get_val(col):
+            return float(latest.get(col, 0)) if col in latest else 0.0
+
+        def get_change(col):
+            if col not in latest or col not in prev:
+                return 0.0
+            val_now = latest[col]
+            val_prev = prev[col]
+            if val_prev == 0:
+                return 0.0
+            return float((val_now - val_prev) / val_prev * 100)
+
+        # Extract available drivers
+        drivers = {
+            'rsi': {'value': get_val('rsi'), 'change': get_change('rsi')},
+            'macd': {'value': get_val('macd'), 'change': get_change('macd')},
+            'close': {'value': get_val('close'), 'change': get_change('close')},
+        }
+
+        # Determine dominant factors
+        factors = []
+
+        # Price movement
+        if drivers['close']['change'] > 1.0:
+            factors.append(f"Giá tăng mạnh ({drivers['close']['change']:.2f}%)")
+        elif drivers['close']['change'] < -1.0:
+            factors.append(f"Giá giảm mạnh ({drivers['close']['change']:.2f}%)")
+
+        # RSI signals
+        if drivers['rsi']['value'] > 70:
+            factors.append("RSI vào vùng Quá Mua (Overbought)")
+        elif drivers['rsi']['value'] < 30:
+            factors.append("RSI vào vùng Quá Bán (Oversold)")
+
+        return {
+            'factors': factors,
+            'raw': drivers
+        }
+
+    def get_yesterday_accuracy(self) -> dict:
+        """Calculate yesterday's prediction accuracy."""
+        if self.data is None or len(self.data) < 10:
+            return None
+
+        if self.model_type == 'ridge':
+            # Get yesterday's features
+            features_yesterday = self.data[self.feature_columns].iloc[-2].values.reshape(1, -1)
+
+            # Scale
+            if self.scaler:
+                features_scaled = self.scaler.transform(features_yesterday)
+
+            # Predict using first model (Day 1)
+            if self.models and len(self.models) > 0:
+                pred_scaled = self.models[0].predict(features_scaled)
+                pred_scaled_reshaped = np.array([pred_scaled[0]] + [0] * 6).reshape(1, -1)
+                pred_usd = self.target_scaler.inverse_transform(pred_scaled_reshaped)[0][0]
+
+                # Actual price today
+                actual_usd = self.data['price'].iloc[-1]
+
+                # Calculate error
+                diff = abs(pred_usd - actual_usd)
+                error_pct = (diff / actual_usd) * 100
+                accuracy = 100 - error_pct
+
+                return {
+                    'predicted_usd': float(pred_usd),
+                    'actual_usd': float(actual_usd),
+                    'error_usd': float(diff),
+                    'error_pct': float(error_pct),
+                    'accuracy': float(max(0, accuracy))
+                }
+
+        return None
+
     def _get_future_trading_dates(self, last_date: datetime, num_days: int) -> List[datetime]:
         dates = []
         current_date = last_date
-        
+
         while len(dates) < num_days:
             current_date = current_date + timedelta(days=1)
             if current_date.weekday() < 5:
                 dates.append(current_date)
-        
+
         return dates
     
     def get_historical_data(self, days: int = 30, in_vnd: bool = True) -> Dict:
@@ -446,7 +531,7 @@ if __name__ == "__main__":
     result = predictor.predict(in_vnd=True)
     
     print("\n" + "=" * 60)
-    print("🔮 DỰ ĐOÁN GIÁ BẠC 7 NGÀY TỚI")
+    print("[PREDICT] DỰ ĐOÁN GIÁ BẠC 7 NGÀY TỚI")
     print("=" * 60)
     print(f"Model: {result['model_type'].upper()}")
     print(f"Ngày cuối: {result['last_known']['date']}")

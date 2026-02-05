@@ -43,13 +43,13 @@ async def lifespan(app: FastAPI):
     """Initialize and cleanup resources."""
     global predictor, data_fetcher
     
-    print("🚀 Starting Silver Price Prediction API...", flush=True)
+    print("[STARTUP] Starting Silver Price Prediction API...", flush=True)
     start_time = datetime.now()
     
     # Initialize data fetcher immediately (lightweight)
     print(f"[{datetime.now().time()}] Initializing RealTimeDataFetcher...", flush=True)
     data_fetcher = RealTimeDataFetcher(cache_duration_minutes=5)
-    print(f"[{datetime.now().time()}] ✓ Real-time data fetcher initialized", flush=True)
+    print(f"[{datetime.now().time()}] [OK] Real-time data fetcher initialized", flush=True)
     
     # Start model loading in background
     asyncio.create_task(load_model_background())
@@ -62,7 +62,7 @@ async def lifespan(app: FastAPI):
     yield
     
     # Cleanup
-    print("👋 Shutting down API...", flush=True)
+    print("[SHUTDOWN] Shutting down API...", flush=True)
 
 async def load_model_background():
     """Load model in background to not block startup."""
@@ -73,21 +73,21 @@ async def load_model_background():
     try:
         # Run heavy lifting in thread pool
         predictor = await asyncio.to_thread(_load_model_logic)
-        print(f"[{datetime.now().time()}] ✅ Background: Model loaded successfully!", flush=True)
+        print(f"[{datetime.now().time()}] [OK] Background: Model loaded successfully!", flush=True)
     except Exception as e:
-        print(f"[{datetime.now().time()}] ❌ Background: Model loading failed: {e}", flush=True)
+        print(f"[{datetime.now().time()}] [ERROR] Background: Model loading failed: {e}", flush=True)
 
 async def load_gold_model_background():
     """Load gold model in background."""
     global gold_predictor
     
-    print(f"[{datetime.now().time()}] ⏳ Background: Starting gold model loading...", flush=True)
+    print(f"[{datetime.now().time()}] [LOADING] Background: Starting gold model loading...", flush=True)
     
     try:
         gold_predictor = await asyncio.to_thread(_load_gold_model_logic)
-        print(f"[{datetime.now().time()}] ✅ Background: Gold model loaded successfully!", flush=True)
+        print(f"[{datetime.now().time()}] [OK] Background: Gold model loaded successfully!", flush=True)
     except Exception as e:
-        print(f"[{datetime.now().time()}] ❌ Background: Gold model loading failed: {e}", flush=True)
+        print(f"[{datetime.now().time()}] [ERROR] Background: Gold model loading failed: {e}", flush=True)
 
 def _load_gold_model_logic():
     """Synchronous gold model loading logic."""
@@ -97,10 +97,10 @@ def _load_gold_model_logic():
         p.load_data()
         p.create_features()
         p.load_model()
-        print("   ✓ Gold Ridge model loaded", flush=True)
+        print("   [OK] Gold Ridge model loaded", flush=True)
         return p
     except Exception as e:
-        print(f"   ❌ Gold model failed: {e}", flush=True)
+        print(f"   [ERROR] Gold model failed: {e}", flush=True)
         return None
 
 
@@ -108,13 +108,13 @@ async def load_vn_gold_model_background():
     """Load Vietnam Gold model in background."""
     global vn_gold_predictor
     
-    print(f"[{datetime.now().time()}] ⏳ Background: Starting VN Gold model loading...", flush=True)
+    print(f"[{datetime.now().time()}] [LOADING] Background: Starting VN Gold model loading...", flush=True)
     
     try:
         vn_gold_predictor = await asyncio.to_thread(_load_vn_gold_model_logic)
-        print(f"[{datetime.now().time()}] ✅ Background: VN Gold model loaded successfully!", flush=True)
+        print(f"[{datetime.now().time()}] [OK] Background: VN Gold model loaded successfully!", flush=True)
     except Exception as e:
-        print(f"[{datetime.now().time()}] ❌ Background: VN Gold model loading failed: {e}", flush=True)
+        print(f"[{datetime.now().time()}] [ERROR] Background: VN Gold model loading failed: {e}", flush=True)
 
 
 def _load_vn_gold_model_logic():
@@ -128,10 +128,10 @@ def _load_vn_gold_model_logic():
         p.load_world_data()
         p.merge_datasets()
         p.create_transfer_features()
-        print("   ✓ Vietnam Gold model loaded", flush=True)
+        print("   [OK] Vietnam Gold model loaded", flush=True)
         return p
     except Exception as e:
-        print(f"   ❌ VN Gold model failed: {e}", flush=True)
+        print(f"   [ERROR] VN Gold model failed: {e}", flush=True)
         return None
 
 def _load_model_logic():
@@ -142,21 +142,19 @@ def _load_model_logic():
         p.load_data()
         p.create_features()
         p.load_model()
-        print("   ✓ Enhanced Ridge model loaded", flush=True)
+        print("   [OK] Enhanced Ridge model loaded", flush=True)
         return p
     except Exception as e:
-        print(f"   ⚠️ Enhanced model failed: {e}", flush=True)
+        print(f"   [WARNING] Enhanced model failed: {e}", flush=True)
         print("   Fallback to UnifiedPredictor...", flush=True)
         try:
             from src.unified_predictor import UnifiedPredictor
             p = UnifiedPredictor()
-            p._load_data()
-            p._create_ridge_features()
-            p.load_ridge_model()
-            print("   ✓ UnifiedPredictor loaded", flush=True)
+            p.load()
+            print("   [OK] UnifiedPredictor loaded", flush=True)
             return p
         except Exception as e2:
-            print(f"   ❌ Fallback failed: {e2}", flush=True)
+            print(f"   [ERROR] Fallback failed: {e2}", flush=True)
             return None
 
 
@@ -303,33 +301,80 @@ async def predict_vietnam_gold():
         )
     
     try:
+        print("[API] Vietnam Gold Prediction requested", flush=True)
         # Get live market data for real-time prediction
         market_data = None
         if data_fetcher:
             try:
                 market_data = data_fetcher.get_full_market_data()
+                print(f"[API] Market data fetched: {market_data.keys() if market_data else 'None'}", flush=True)
             except Exception as e:
-                print(f"Error fetching live market data: {e}")
+                print(f"Error fetching live market data: {e}", flush=True)
 
         # Predict
         if market_data and market_data.get('gold_close'):
+            print("[API] Using LIVE prediction mode", flush=True)
             predictions = vn_gold_predictor.predict_live(market_data)
             is_live = True
         else:
+            print("[API] Using STATIC prediction mode", flush=True)
             predictions = vn_gold_predictor.predict()
             is_live = False
+            
+        print(f"[API] Predictions generated: {len(predictions) if predictions else 0} items", flush=True)
             
         model_info = vn_gold_predictor.get_model_info()
         model_info['is_live_prediction'] = is_live
         if market_data:
             model_info['live_market_data'] = market_data
         
+        # Calculate last known price
+        last_known = None
+        if vn_gold_predictor.merged_data is not None and not vn_gold_predictor.merged_data.empty:
+            last_row = vn_gold_predictor.merged_data.iloc[-1]
+            last_price = float(last_row.get('mid_price', 0))
+            last_date = last_row.get('date')
+            if hasattr(last_date, 'strftime'):
+                last_date = last_date.strftime('%Y-%m-%d')
+            else:
+                last_date = str(last_date)
+                
+            last_known = {
+                "date": last_date,
+                "price": last_price
+            }
+            
+        # Calculate summary metrics
+        summary = {}
+        if predictions:
+            pred_prices = [p['predicted_price'] for p in predictions]
+            min_price = min(pred_prices)
+            max_price = max(pred_prices)
+            avg_price = sum(pred_prices) / len(pred_prices)
+            
+            # Compare with last known price or first prediction
+            items_base = last_known['price'] if last_known else pred_prices[0]
+            total_change = pred_prices[-1] - items_base
+            total_change_pct = (total_change / items_base) * 100 if items_base > 0 else 0
+            
+            summary = {
+                "min_price": round(min_price, 2),
+                "max_price": round(max_price, 2),
+                "avg_price": round(avg_price, 2),
+                "total_change": round(total_change, 2),
+                "total_change_pct": round(total_change_pct, 2),
+                "trend": "up" if total_change >= 0 else "down"
+            }
+
         return {
             "success": True,
             "timestamp": datetime.now().isoformat(),
             "currency": "VND",
             "unit": "triệu VND/lượng",
             "predictions": predictions,
+            "last_known": last_known,
+            "summary": summary,
+            "exchange_rate": 25450,
             "model_info": model_info
         }
     except Exception as e:
@@ -1004,8 +1049,15 @@ async def get_fear_greed_index():
     Calculate Fear & Greed Index based on market data and AI predictions.
     Returns score 0-100 and recommendation signal.
     """
-    global predictor, data_fetcher
-    
+    global predictor, data_fetcher, _fear_greed_cache
+
+    # Check cache (10 minutes duration)
+    now = datetime.now()
+    if 'data' in _fear_greed_cache:
+        cached = _fear_greed_cache['data']
+        if (now - cached['timestamp']).total_seconds() < 600:  # 10 minutes
+            return cached['data']
+
     try:
         if predictor is None:
             return {
@@ -1125,7 +1177,7 @@ async def get_fear_greed_index():
             recommendation = "Strong Buy Signal"
             color = "#2980b9"  # Blue
         
-        return {
+        result = {
             "success": True,
             "index": {
                 "score": round(fear_greed_score, 1),
@@ -1140,7 +1192,15 @@ async def get_fear_greed_index():
                 "timestamp": datetime.now().isoformat()
             }
         }
-        
+
+        # Update cache
+        _fear_greed_cache['data'] = {
+            'data': result,
+            'timestamp': now
+        }
+
+        return result
+
     except Exception as e:
         return {
             "success": False,
@@ -1543,10 +1603,10 @@ if __name__ == "__main__":
     import uvicorn
     
     print("=" * 60)
-    print("🥈 SILVER PRICE PREDICTION API")
+    print("[SILVER] SILVER PRICE PREDICTION API")
     print("=" * 60)
-    print("\n📍 Starting server at http://localhost:8000")
-    print("📚 API docs at http://localhost:8000/docs")
+    print("\n[SERVER] Starting server at http://localhost:8000")
+    print("[DOCS] API docs at http://localhost:8000/docs")
     print("\nPress Ctrl+C to stop\n")
     
     uvicorn.run(
@@ -1559,52 +1619,72 @@ if __name__ == "__main__":
 # ======= API FOR LOCAL PRICES =======
 @app.get('/api/prices/local')
 async def get_local_prices():
+    """Get local gold/silver prices from Vietnamese vendors."""
+    global _local_prices_cache
+
+    # Check cache (3 minutes duration)
+    now = datetime.now()
+    if 'data' in _local_prices_cache:
+        cached = _local_prices_cache['data']
+        if (now - cached['timestamp']).total_seconds() < 180:  # 3 minutes
+            return {'success': True, 'data': cached['data'], 'cached': True}
+
     service = get_price_service()
     data = await service.fetch_all()
+
+    # Update cache
+    _local_prices_cache['data'] = {
+        'data': data,
+        'timestamp': now
+    }
+
     return {'success': True, 'data': data}
 
 
+# Simple in-memory cache for heavier endpoints
+_buy_score_cache = {}
+_market_analysis_cache = {}
+_fear_greed_cache = {}
+_local_prices_cache = {}
+
 @app.get('/api/buy-score')
-async def get_buy_score(asset: str = Query("silver", description="Asset type: 'gold' or 'silver'")):
+async def get_buy_score(asset: str = Query("gold", description="Asset type: gold or silver")):
     """
-    Calculate AI Buy Score (0-100) indicating whether it's a good time to buy.
+    Calculate AI Buy Score based on multiple factors.
+    """
+    global data_fetcher
     
-    Returns:
-        - score: 0-100 overall score
-        - label: "Rất tốt", "Khá tốt", "Trung bình", "Chưa nên"
-        - factors: Breakdown of scoring factors
-        - recommendation: Natural language advice
-    """
+    # Check cache (5 minutes duration)
+    now = datetime.now()
+    if asset in _buy_score_cache:
+        cached = _buy_score_cache[asset]
+        if (now - cached['timestamp']).total_seconds() < 300: # 5 minutes
+            return {"success": True, "data": cached["data"], "cached": True}
+
     try:
-        # Gather data from various sources
-        spread = None
+        # Initialize with default fallback values
+        spread = 2000000 if asset == "gold" else 1000000
         ai_prediction_change = None
         usd_change = None
         vix_value = None
         current_price = None
         avg_7day_price = None
         
-        # 1. Get realtime data (USD, VIX)
+        # 1. Get realtime data (VIX)
         if data_fetcher:
             try:
-                realtime = await data_fetcher.get_all_data()
+                realtime = data_fetcher.get_full_market_data()
                 if realtime:
-                    # USD change
-                    if 'usd_vnd' in realtime and realtime['usd_vnd']:
-                        usd_data = realtime['usd_vnd']
-                        if usd_data.get('change_percent'):
-                            usd_change = usd_data['change_percent']
-                    
-                    # VIX
+                    # VIX (direct float value, not a dict)
                     if 'vix' in realtime and realtime['vix']:
-                        vix_value = realtime['vix'].get('value')
+                        vix_value = realtime['vix']
             except Exception as e:
                 print(f"Buy Score: Error fetching realtime: {e}")
         
         # 2. Get predictions for AI forecast
         if asset == "gold" and gold_predictor:
             try:
-                predictions = await gold_predictor.predict()
+                predictions = gold_predictor.predict()
                 if predictions and 'predictions' in predictions:
                     preds = predictions['predictions']
                     if len(preds) >= 7:
@@ -1616,7 +1696,7 @@ async def get_buy_score(asset: str = Query("silver", description="Asset type: 'g
                 print(f"Buy Score: Error fetching gold predictions: {e}")
         elif predictor:
             try:
-                predictions = await predictor.predict()
+                predictions = predictor.predict()
                 if predictions and 'predictions' in predictions:
                     preds = predictions['predictions']
                     if len(preds) >= 7:
@@ -1677,6 +1757,12 @@ async def get_buy_score(asset: str = Query("silver", description="Asset type: 'g
             current_price=current_price,
             avg_7day_price=avg_7day_price,
         )
+        
+        # Update cache
+        _buy_score_cache[asset] = {
+            "data": result,
+            "timestamp": now
+        }
         
         return {
             "success": True,
@@ -1774,7 +1860,7 @@ async def get_time_machine_prediction(request: dict):
         # Gold predictions
         if gold_predictor:
             try:
-                pred_data = await gold_predictor.predict()
+                pred_data = gold_predictor.predict()
                 if pred_data and 'predictions' in pred_data:
                     gold_predictions = pred_data['predictions']
             except Exception as e:
@@ -1902,8 +1988,15 @@ async def get_market_analysis(
     AI Market Analysis - Analyzes current market conditions and provides recommendations.
     Uses real-time data from RealTimeDataFetcher.
     """
-    global data_fetcher, predictor, gold_predictor
+    global data_fetcher, predictor, gold_predictor, _market_analysis_cache
     
+    # Check cache (15 minutes duration)
+    now = datetime.now()
+    if asset in _market_analysis_cache:
+        cached = _market_analysis_cache[asset]
+        if (now - cached['timestamp']).total_seconds() < 900: # 15 minutes
+            return cached["data"]
+
     try:
         # Get market indicators
         indicators = {}
@@ -2018,7 +2111,7 @@ async def get_market_analysis(
             "hold": "🔵 GIỮ NGUYÊN - Tiếp tục theo dõi thị trường"
         }
         
-        return {
+        result = {
             "success": True,
             "asset": asset,
             "timestamp": datetime.now().isoformat(),
@@ -2030,6 +2123,14 @@ async def get_market_analysis(
             },
             "ai_trend": ai_trend
         }
+        
+        # Update cache
+        _market_analysis_cache[asset] = {
+            "data": result,
+            "timestamp": now
+        }
+        
+        return result
         
     except Exception as e:
         print(f"Market Analysis Error: {e}")
