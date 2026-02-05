@@ -1,0 +1,45 @@
+name: Daily Model Retraining
+
+on:
+  schedule:
+    # Run at 17:00 UTC (00:00 Vietnam Time)
+    - cron: '0 17 * * *'
+  workflow_dispatch:  # Allow manual trigger
+
+permissions:
+  contents: write
+
+jobs:
+  retrain:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r backend/requirements.txt
+        pip install lxml yfinance
+        
+    - name: Run Daily Update Script
+      run: python scripts/daily_update.py
+      
+    - name: Commit and Push changes
+      run: |
+        git config --global user.name 'GitHub Action'
+        git config --global user.email 'action@github.com'
+        git add data/datasets/gold_price_sjc_complete.csv
+        git add data/datasets/gold_geopolitical_dataset.csv
+        git add models/vietnam_gold_models.pkl
+        git add dataset/dataset_silver.csv
+        git add models/enhanced_silver_model.pkl
+        git diff --quiet && git diff --staged --quiet || (git commit -m "🤖 Daily Data Update & Model Retraining [skip ci]" && git push)
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

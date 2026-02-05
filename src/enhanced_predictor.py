@@ -66,8 +66,98 @@ class EnhancedPredictor:
         self.data['high'] = self.data['Silver_High']
         self.data['low'] = self.data['Silver_Low']
         
-        print(f"\✓ Loaded {len(self.data):,} records with external features")
+        print(f"\n✓ Loaded {len(self.data):,} records with external features")
         print(f"  Date range: {self.data['Date'].min()} to {self.data['Date'].max()}")
+        
+        # Check for stale data and patch if needed
+        last_date = self.data['Date'].max()
+        today = datetime.now()
+        gap_days = (today - last_date).days
+        
+        if gap_days > 2:
+            print(f"⚠️ Data stale ({gap_days} days old). Auto-patching...")
+            self._patch_missing_data(last_date, gap_days)
+            
+    def _patch_missing_data(self, last_date, gap_days):
+        """Fetch missing data from RealTimeDataFetcher."""
+        try:
+            from backend.realtime_data import get_fetcher
+            fetcher = get_fetcher()
+            
+            # We need Silver, Gold, DXY, VIX
+            # 1. Fetch Silver (Standard)
+            hist_silver = fetcher.get_historical_prices(days=gap_days + 5)
+            # 2. Fetch Gold
+            hist_gold = fetcher.get_historical_prices(days=gap_days + 5, symbol=fetcher.GOLD_SYMBOL)
+            # 3. Fetch DXY (if supported by yfinance in fetcher, yes it is)
+            hist_dxy = fetcher.get_historical_prices(days=gap_days + 5, symbol=fetcher.DXY_SYMBOL)
+            # 4. Fetch VIX
+            hist_vix = fetcher.get_historical_prices(days=gap_days + 5, symbol=fetcher.VIX_SYMBOL)
+            
+            if not (hist_silver['data'] and hist_gold['data']):
+                print("❌ Failed to fetch patch data")
+                return
+                
+            # Convert to DataFrames
+            def to_df(hist_data, col_prefix):
+                if not hist_data or 'data' not in hist_data: return pd.DataFrame()
+                df = pd.DataFrame(hist_data['data'])
+                if df.empty: return df
+                df['Date'] = pd.to_datetime(df['date'])
+                df = df.set_index('Date')
+                # Renaming to match dataset columns
+                # Silver: Silver_Close, Silver_Open...
+                # Gold: Gold (Just Close usually used? No, existing data has Gold column)
+                # Looking at create_features: df['Gold'], df['DXY'], df['VIX']
+                # The dataset_enhanced.csv has columns like: Date, Silver_Close, Gold, DXY, VIX...
+                # I need to match that schema.
+                return df[['close']].rename(columns={'close': col_prefix})
+
+            df_silver = to_df(hist_silver, 'Silver_Close')
+            # Silver also needs High/Low for features
+            df_silver_full = pd.DataFrame(hist_silver['data'])
+            df_silver_full['Date'] = pd.to_datetime(df_silver_full['date'])
+            df_silver_full = df_silver_full.set_index('Date')
+            
+            df_gold = to_df(hist_gold, 'Gold')
+            df_dxy = to_df(hist_dxy, 'DXY')
+            df_vix = to_df(hist_vix, 'VIX')
+            
+            # Merge
+            new_data = df_silver_full[['close', 'open', 'high', 'low']].rename(columns={
+                'close': 'Silver_Close', 'open': 'Silver_Open', 
+                'high': 'Silver_High', 'low': 'Silver_Low'
+            })
+            
+            new_data = new_data.join([df_gold, df_dxy, df_vix], how='inner')
+            
+            # Filter for new dates
+            new_data = new_data[new_data.index > last_date]
+            
+            if not new_data.empty:
+                # Reset index to match self.data['Date'] column format
+                new_data = new_data.reset_index()
+                # Ensure all columns exist (fill missing with 0 or ffill later)
+                # We mainly need Silver_Close, Gold, DXY, VIX for features
+                
+                # Append
+                self.data = pd.concat([self.data, new_data], ignore_index=True)
+                
+                # IMPORTANT: Update derived columns 'price', 'date' etc
+                self.data['price'] = self.data['Silver_Close']
+                self.data['date'] = self.data['Date'] # Date column is filled by reset_index
+                self.data['high'] = self.data['Silver_High']
+                self.data['low'] = self.data['Silver_Low']
+                
+                # Save back to CSV
+                self.data.to_csv(self.data_path, index=False)
+                print(f"✅ Auto-patched {len(new_data)} records and saved to CSV.")
+            else:
+                print("No new data to patch after filtering.")
+                
+        except Exception as e:
+            print(f"❌ Error patching silver data: {e}")
+            # traceback.print_exc()
         
     def create_features(self):
         """Create all features including external data features."""
@@ -419,6 +509,73 @@ class EnhancedPredictor:
         }
         
         return result
+
+    def predict_live(self, market_data: dict) -> list:
+        """
+        Predict based on real-time market inputs.
+        """
+        if self.models is None:
+            self.load_model()
+            
+        # Ensure data is loaded to get features
+        if self.data is None:
+            self.load_data()
+            self.create_features()
+            
+        # Clone data
+        df = self.data.copy()
+        
+        # Append logic for live row would be complex because we need Sequence Length lags.
+        # Simpler approach: Update the LAST row of the dataframe with the LIVE values.
+        # This assumes the live prediction replaces today's "closing" data effectively.
+        
+        last_idx = df.index[-1] # Timestamp
+        today_date = pd.Timestamp(datetime.now().date())
+        
+        # If last date is older than today, append a NEW row for today
+        if last_idx < today_date:
+            # Create new row cloning the last one (ffill)
+            new_row = df.iloc[-1:].copy()
+            new_row.index = [today_date]
+            new_row['Date'] = today_date
+            # Append using concat
+            df = pd.concat([df, new_row])
+            last_idx = today_date # Point to new row
+            
+        # Update columns based on market_data for the LAST row (which is now Today)
+        if 'silver_close' in market_data:
+            df.at[last_idx, 'price'] = market_data['silver_close']
+            df.at[last_idx, 'Silver_Close'] = market_data['silver_close']
+        
+        if 'gold_close' in market_data:
+            df.at[last_idx, 'Gold'] = market_data['gold_close']
+            
+        if 'dxy' in market_data:
+            df.at[last_idx, 'DXY'] = market_data['dxy']
+            
+        if 'vix' in market_data:
+            df.at[last_idx, 'VIX'] = market_data['vix']
+            
+        # Recalculate features for the WHOLE dataset (or just tail) to Propagate changes
+        # Since we use rolling windows, we need to recalculate. 
+        # But create_features works on self.data. 
+        # We can run create_features on the modified df.
+        # Ideally refactor create_features to take df arg?
+        # self.create_features() calls self.data.
+        
+        # Workaround: Temporarily swap self.data
+        original_data = self.data
+        self.data = df
+        try:
+            self.create_features() # This updates self.data with newfeatures
+            # Now predict
+            predictions_result = self.predict(in_vnd=True) # returns dict result
+            return predictions_result['predictions']
+        finally:
+            # Restore - BUT wait, if we appended a row, maybe we should keep it?
+            # For "LIVE" mode, we usually don't want to permanently mutate state until end of day save.
+            # So restoring original_data is safer for concurrency (though threading issue exists).
+            self.data = original_data
     
     def _convert_to_vnd(self, prices_usd: np.ndarray) -> np.ndarray:
         """Convert USD/oz to VND/lượng."""

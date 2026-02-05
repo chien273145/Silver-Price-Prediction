@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Silver Price Prediction | AI Dự Đoán Giá Bạc</title>
+    <meta name="description"
+        content="Dự đoán giá bạc 7 ngày tới bằng AI Machine Learning. Phân tích Gold/Silver Ratio, GPR Index. Độ chính xác R²=96%.">
+    <meta name="keywords"
+        content="giá bạc, silver price, dự đoán giá bạc, AI prediction, silver investment, bạc SJC, bạc Phú Quý">
+    <meta name="author" content="Precious Metals AI">
+    <meta name="robots" content="index, follow">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="/static/favicon.png">
+    <link rel="shortcut icon" href="/static/favicon.png">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://silver-price-prediction.onrender.com/silver">
+    <meta property="og:title" content="Dự Đoán Giá Bạc - AI Prediction">
+    <meta property="og:description" content="Hệ thống AI dự đoán giá bạc 7 ngày với độ chính xác cao">
+    <meta property="og:image" content="https://silver-price-prediction.onrender.com/static/og-image.png">
+
+    <!-- Google Search Console Verification -->
+    <meta name="google-site-verification" content="YOUR_VERIFICATION_CODE">
+
+    <!-- Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-PZD8DRQTMC"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { dataLayer.push(arguments); }
+        gtag('js', new Date());
+        gtag('config', 'G-PZD8DRQTMC');
+    </script>
+
+    <!-- Google AdSense -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6129455088909982"
+        crossorigin="anonymous"></script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap"
+        rel="stylesheet">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"></script>
+
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://silver-price-prediction.onrender.com/silver">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="/static/styles.css?v=2.2.0">
+</head>
+
+<body>
+    <!-- Floating Particles -->
+    <div class="particles" id="particles"></div>
+
+    <div class="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <span class="logo-icon">🥈</span>
+                    <div class="logo-text">
+                        <h1>Silver Price AI</h1>
+                        <span class="subtitle">Dự đoán giá bạc thông minh</span>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <!-- Asset Toggle - Navigate between pages -->
+                    <div class="asset-toggle">
+                        <a href="/silver" class="asset-btn active" title="Giá Bạc">🥈 Bạc</a>
+                        <a href="/gold" class="asset-btn" title="Giá Vàng">🥇 Vàng</a>
+                    </div>
+
+                    <div class="data-status" id="dataStatus" title="Trạng thái dữ liệu">
+                        <span class="status-dot"></span>
+                        <span class="status-text">Đang kiểm tra...</span>
+                    </div>
+                    <div class="currency-toggle">
+                        <button class="toggle-btn active" data-currency="VND">VND</button>
+                        <button class="toggle-btn" data-currency="USD">USD</button>
+                    </div>
+                    <button class="refresh-btn" id="refreshBtn" title="Làm mới dữ liệu">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path
+                                d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
+                        </svg>
+                    </button>
+
+                </div>
+            </div>
+        </header>
+
+        <!-- Disclaimer Banner -->
+        <div class="disclaimer-banner">
+            <div class="disclaimer-content">
+                <span class="disclaimer-icon">⚠️</span>
+                <p><strong>Lưu ý:</strong> Dự đoán chỉ mang tính chất <strong>tham khảo</strong>, không phải lời khuyên
+                    đầu tư. Hãy tự nghiên cứu và tham khảo ý kiến chuyên gia trước khi đưa ra quyết định đầu tư.</p>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <main class="main">
+            <!-- Local Price Table -->
+            <section class="local-prices-section" style="margin-bottom: 2rem;">
+                <div class="card table-card">
+                    <div class="card-header">
+                        <span class="card-label" id="localPriceHeader">🇻🇳 Bảng Giá Bạc (SJC, Phú Quý)</span>
+                        <div class="header-badges">
+                            <span class="badge" id="localPriceTime">Cập nhật: --:--</span>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="prediction-table local-price-table">
+                            <thead>
+                                <tr>
+                                    <th>Thương hiệu</th>
+                                    <th>Sản phẩm</th>
+                                    <th>Mua vào</th>
+                                    <th>Bán ra</th>
+                                    <th>Chênh lệch</th>
+                                </tr>
+                            </thead>
+                            <tbody id="localPriceTableBody">
+                                <tr>
+                                    <td colspan="5" class="loading-cell">Đang tải dữ liệu thực tế...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Portfolio Section -->
+            <section class="portfolio-section" id="portfolioSection" style="margin-bottom: 2rem;">
+                <div class="card portfolio-card">
+                    <div class="card-header">
+                        <span class="card-label">📒 Sổ Tài Sản (Portfolio)</span>
+                        <button class="add-tx-btn" onclick="showAddTransaction()">
+                            + Thêm Giao Dịch
+                        </button>
+                    </div>
+
+                    <!-- Portfolio Summary -->
+                    <div class="portfolio-summary-grid">
+                        <div class="p-summary-item">
+                            <span class="p-label">Tổng Vốn Đầu Tư</span>
+                            <span class="p-value" id="pTotalInvested">0 ₫</span>
+                        </div>
+                        <div class="p-summary-item">
+                            <span class="p-label">Giá Trị Hiện Tại</span>
+                            <span class="p-value" id="pCurrentValue">0 ₫</span>
+                        </div>
+                        <div class="p-summary-item">
+                            <span class="p-label">Lợi Nhuận (P/L)</span>
+                            <span class="p-value" id="pProfitLoss">0 ₫</span>
+                            <span class="p-percent" id="pProfitPercent">(0.00%)</span>
+                        </div>
+                    </div>
+
+                    <!-- AI Time Machine Widget -->
+                    <div class="time-machine-widget">
+                        <div class="time-machine-header">
+                            <span class="tm-title">🔮 AI Time Machine</span>
+                            <button class="tm-refresh-btn" onclick="loadTimeMachine()" title="Làm mới dự báo">↻</button>
+                        </div>
+                        <div class="time-machine-predictions" id="timeMachinePredictions">
+                            <div class="tm-loading">Đang tính toán dự báo tương lai...</div>
+                        </div>
+                        <div class="time-machine-note">
+                            *Dự báo dựa trên AI model với độ chính xác ~96%
+                        </div>
+                    </div>
+
+                    <!-- Savings Comparison Widget -->
+                    <div class="tools-row">
+                        <div class="savings-comparison-widget">
+                            <div class="widget-header">
+                                <span class="widget-title">💰 So sánh với Tiết kiệm</span>
+                            </div>
+                            <div class="savings-content" id="savingsComparisonContent">
+                                <div class="savings-row">
+                                    <span class="savings-label">ROI của bạn:</span>
+                                    <span class="savings-value" id="portfolioROI">--</span>
+                                </div>
+                                <div class="savings-row">
+                                    <span class="savings-label">Lãi suất NH (5%/năm):</span>
+                                    <span class="savings-value" id="bankInterest">--</span>
+                                </div>
+                                <div class="savings-result" id="savingsResult">
+                                    Thêm giao dịch để so sánh
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Allocation Chart -->
+                        <div class="allocation-chart-widget">
+                            <div class="widget-header">
+                                <span class="widget-title">📊 Phân bổ Tài sản</span>
+                            </div>
+                            <div class="allocation-chart-container">
+                                <canvas id="allocationChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Filter Tabs -->
+                    <div class="portfolio-tabs">
+                        <button class="p-tab active" data-filter="all">Tất cả</button>
+                        <button class="p-tab" data-filter="gold">Vàng</button>
+                        <button class="p-tab" data-filter="silver">Bạc</button>
+                    </div>
+
+                    <!-- Transaction List -->
+                    <div class="table-responsive">
+                        <table class="prediction-table portfolio-table">
+                            <thead>
+                                <tr>
+                                    <th>Ngày</th>
+                                    <th>Loại</th>
+                                    <th>Thương hiệu</th>
+                                    <th>Khối lượng</th>
+                                    <th>Giá vốn</th>
+                                    <th>Giá hiện tại</th>
+                                    <th>P/L</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="portfolioTableBody">
+                                <tr>
+                                    <td colspan="8" class="empty-cell">Chưa có giao dịch nào. Hãy thêm giao dịch đầu
+                                        tiên!</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- AI Buy Score Section -->
+            <section class="buy-score-section" style="margin-bottom: 2rem;">
+                <div class="card buy-score-card">
+                    <div class="card-header">
+                        <span class="card-label">🤖 AI Buy Score</span>
+                        <span class="buy-score-asset" id="buyScoreAsset">Bạc</span>
+                    </div>
+                    <div class="buy-score-content">
+                        <div class="buy-score-gauge">
+                            <div class="gauge-ring" id="buyScoreRing">
+                                <div class="gauge-fill" id="buyScoreFill"></div>
+                            </div>
+                            <div class="gauge-center">
+                                <span class="gauge-score" id="buyScoreValue">--</span>
+                                <span class="gauge-label" id="buyScoreLabel">Đang tính...</span>
+                            </div>
+                        </div>
+                        <div class="buy-score-recommendation" id="buyScoreRecommendation">
+                            Đang phân tích điều kiện thị trường...
+                        </div>
+                    </div>
+                    <div class="buy-score-factors" id="buyScoreFactors">
+                        <!-- Factors populated by JS -->
+                    </div>
+                    <button class="buy-score-toggle" onclick="toggleBuyScoreFactors()">
+                        <span id="buyScoreToggleText">Xem chi tiết</span>
+                        <span class="toggle-icon">▼</span>
+                    </button>
+                </div>
+            </section>
+
+            <!-- Price Cards -->
+            <section class="price-cards">
+                <div class="card price-card current-price">
+                    <div class="card-header">
+                        <span class="card-label">Giá hiện tại</span>
+                        <span class="live-badge">
+                            <span class="live-dot"></span>
+                            LIVE
+                        </span>
+                    </div>
+                    <div class="card-value" id="currentPrice">--</div>
+                    <div class="card-unit" id="priceUnit">VND/lượng</div>
+                    <div class="card-change" id="priceChange">
+                        <span class="change-value">--</span>
+                        <span class="change-percent">--</span>
+                    </div>
+                </div>
+
+                <div class="card price-card prediction-card">
+                    <div class="card-header">
+                        <span class="card-label">Dự đoán 7 ngày</span>
+                        <span class="trend-badge" id="trendBadge">--</span>
+                    </div>
+                    <div class="card-value" id="predictedPrice">--</div>
+                    <div class="card-unit">Giá dự đoán ngày thứ 7</div>
+                    <div class="card-change" id="predictionChange">
+                        <span class="change-value">--</span>
+                        <span class="change-percent">--</span>
+                    </div>
+                </div>
+
+                <div class="card price-card sentiment-card">
+                    <div class="card-header">
+                        <span class="card-label">Tâm lý thị trường</span>
+                    </div>
+                    <div style="height: 100px; position: relative; margin-top: 10px;">
+                        <canvas id="sentimentGauge"></canvas>
+                        <div class="gauge-value" id="sentimentValue">--</div>
+                    </div>
+                    <div class="sentiment-text" id="sentimentText">Đang phân tích...</div>
+                </div>
+
+                <div class="card price-card stats-card">
+                    <div class="card-header">
+                        <span class="card-label">Thống kê dự đoán</span>
+                    </div>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <span class="stat-label">Thấp nhất</span>
+                            <span class="stat-value" id="minPrice">--</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Cao nhất</span>
+                            <span class="stat-value" id="maxPrice">--</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Trung bình</span>
+                            <span class="stat-value" id="avgPrice">--</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Tỷ giá USD</span>
+                            <span class="stat-value" id="exchangeRate">--</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Charts Section -->
+            <section class="charts-section">
+                <div class="card chart-card">
+                    <div class="card-header">
+                        <span class="card-label">Biểu đồ giá Bạc lịch sử & Dự đoán</span>
+                        <div class="chart-controls">
+                            <button class="period-btn" data-days="30">30 ngày</button>
+                            <button class="period-btn active" data-days="90">90 ngày</button>
+                            <button class="period-btn" data-days="180">180 ngày</button>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="priceChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Prediction Table -->
+            <section class="prediction-section">
+                <div class="card table-card">
+                    <div class="card-header">
+                        <span class="card-label">Chi tiết dự đoán giá Bạc 7 ngày</span>
+                        <span class="last-update" id="lastUpdate">Cập nhật: --</span>
+                    </div>
+                    <div class="table-container">
+                        <table class="prediction-table">
+                            <thead>
+                                <tr>
+                                    <th>Ngày</th>
+                                    <th>Giá dự đoán</th>
+                                    <th>Thay đổi</th>
+                                    <th>% Thay đổi</th>
+                                    <th>Xu hướng</th>
+                                </tr>
+                            </thead>
+                            <tbody id="predictionTable">
+                                <tr>
+                                    <td colspan="5" class="loading-cell">Đang tải dữ liệu...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Model Info Section -->
+            <section class="model-section">
+                <div class="card model-card">
+                    <div class="card-header">
+                        <span class="card-label">Thông tin mô hình AI</span>
+                        <span class="model-badge" id="modelBadge">Silver Ridge Regression</span>
+                    </div>
+                    <div class="model-metrics">
+                        <div class="metric-item">
+                            <div class="metric-icon">🎯</div>
+                            <div class="metric-info">
+                                <span class="metric-label">R² Score</span>
+                                <span class="metric-value" id="modelR2">0.96</span>
+                            </div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-icon">📉</div>
+                            <div class="metric-info">
+                                <span class="metric-label">MAPE</span>
+                                <span class="metric-value" id="modelMAPE">3.37%</span>
+                            </div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-icon">📊</div>
+                            <div class="metric-info">
+                                <span class="metric-label">Features</span>
+                                <span class="metric-value" id="modelFeatures">44</span>
+                            </div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-icon">🧠</div>
+                            <div class="metric-info">
+                                <span class="metric-label">Data Sources</span>
+                                <span class="metric-value" id="modelData">GS Ratio, GPR</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Accuracy Tracking Section -->
+            <section class="accuracy-section">
+                <div class="card accuracy-card">
+                    <div class="card-header">
+                        <h3>🎯 Độ Chính Xác Dự Đoán</h3>
+                        <span class="accuracy-badge" id="accuracyBadge">--</span>
+                    </div>
+                    <div class="accuracy-content" id="accuracyContent">
+                        <p class="accuracy-loading">Đang tính toán...</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Market News Section -->
+            <section class="news-section">
+                <div class="card news-card">
+                    <div class="card-header">
+                        <h3>📰 Tin Tức Thị Trường Bạc</h3>
+                        <button class="refresh-news-btn" id="refreshNewsBtn" title="Làm mới tin tức">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path
+                                    d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="news-list" id="newsList">
+                        <div class="news-loading">Đang tải tin tức...</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- About & Education Section -->
+            <section class="info-section">
+                <div class="card info-card">
+                    <div class="card-header">
+                        <span class="card-label">Công Nghệ AI</span>
+                        <h3>🧬 Cách Hệ Thống Hoạt Động</h3>
+                    </div>
+                    <div class="info-content">
+                        <p>Hệ thống dự đoán giá bạc của chúng tôi sử dụng mô hình học máy tiên tiến
+                            <strong>Ridge Regression</strong> kết hợp với kỹ thuật <strong>Feature Engineering</strong>
+                            sâu rộng.
+                        </p>
+                        <ul class="info-list">
+                            <li><strong>Gold/Silver Ratio:</strong> Phân tích tỷ lệ giá vàng/bạc để dự đoán xu hướng
+                                bạc.</li>
+                            <li><strong>GPR Index:</strong> Chỉ số rủi ro địa chính trị toàn cầu.</li>
+                            <li><strong>Chỉ số Kỹ thuật:</strong> Tính toán RSI, MACD, Bollinger Bands để xác định xu
+                                hướng ngắn hạn.</li>
+                            <li><strong>Học liên tục:</strong> Mô hình được huấn luyện lại mỗi ngày với dữ liệu mới
+                                nhất.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="card info-card">
+                    <div class="card-header">
+                        <span class="card-label">Kiến Thức</span>
+                        <h3>📚 Kiến Thức Về Bạc</h3>
+                    </div>
+                    <div class="info-content" id="marketFactors">
+                        <div class="factor-item">
+                            <h4>1. Ứng Dụng Công Nghiệp</h4>
+                            <p>Bạc được sử dụng rộng rãi trong pin mặt trời, chip điện tử, và thiết bị y tế. Nhu cầu
+                                công nghiệp
+                                chiếm ~50% tổng cầu bạc toàn cầu.</p>
+                        </div>
+                        <div class="factor-item">
+                            <h4>2. Gold/Silver Ratio</h4>
+                            <p>Tỷ lệ giá vàng/bạc thường dao động 60-80. Khi tỷ lệ cao (>80), bạc được coi là
+                                undervalued
+                                so với vàng.</p>
+                        </div>
+                        <div class="factor-item">
+                            <h4>3. Đầu Tư An Toàn</h4>
+                            <p>Giống như vàng, bạc cũng được coi là "nơi trú ẩn an toàn" trong thời kỳ bất ổn kinh tế và
+                                lạm phát.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- FAQ Section -->
+            <section class="faq-section">
+                <div class="card faq-card">
+                    <div class="card-header center-header">
+                        <h3>❓ Câu Hỏi Thường Gặp</h3>
+                    </div>
+                    <div class="faq-list">
+                        <div class="faq-item">
+                            <div class="faq-question">Dự đoán giá bạc này chính xác đến mức nào?</div>
+                            <div class="faq-answer">Mô hình của chúng tôi đạt chỉ số R² khoảng 0.96 trong
+                                điều kiện thị trường bình thường. Tuy nhiên, các sự kiện bất ngờ có thể
+                                gây sai lệch ngắn hạn.</div>
+                        </div>
+                        <div class="faq-item">
+                            <div class="faq-question">Tôi có nên đầu tư bạc dựa trên dự đoán này?</div>
+                            <div class="faq-answer">Không. Đây chỉ là công cụ tham khảo hỗ trợ ra quyết định. Bạn nên
+                                kết hợp với kiến thức cá nhân và tư vấn từ chuyên gia tài chính.</div>
+                        </div>
+                        <div class="faq-item">
+                            <div class="faq-question">Dữ liệu được cập nhật khi nào?</div>
+                            <div class="faq-answer">Hệ thống tự động cập nhật dữ liệu và chạy dự đoán mới vào lúc 8:00
+                                sáng (giờ Việt Nam) mỗi ngày.</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Email Subscription Section -->
+            <section class="subscribe-section">
+                <div class="card subscribe-card">
+                    <div class="subscribe-content">
+                        <div class="subscribe-text">
+                            <h3>📧 Nhận Dự Đoán Giá Bạc Hàng Ngày</h3>
+                            <p>Đăng ký để nhận thông báo dự đoán giá bạc và tin tức thị trường mỗi ngày.</p>
+                        </div>
+                        <form class="subscribe-form" id="subscribeForm">
+                            <input type="email" id="emailInput" placeholder="Email của bạn" required>
+                            <button type="submit" class="subscribe-btn">Đăng ký</button>
+                        </form>
+                    </div>
+                    <p class="subscribe-note">🔒 Chúng tôi tôn trọng quyền riêng tư của bạn. Không spam.</p>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="footer-content">
+                <p>🏆 Precious Metals AI | Silver Price Prediction</p>
+                <p class="disclaimer">⚠️ Dự đoán chỉ mang tính chất tham khảo, không phải lời khuyên đầu tư</p>
+                <p class="footer-links">
+                    <a href="/gold">Xem Giá Vàng</a> |
+                    <a href="#" onclick="showPrivacyPolicy()">Chính sách bảo mật</a> |
+                    <a href="#" onclick="showContact()">Liên hệ</a> |
+                    <a href="/blog">Blog Kiến Thức</a>
+                </p>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loader"></div>
+        <span>Đang tải...</span>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Privacy Policy Modal -->
+    <div id="privacyModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeModal('privacyModal')">&times;</span>
+            <h2>🔒 Chính Sách Bảo Mật</h2>
+            <div class="modal-body">
+                <p>Chúng tôi coi trọng quyền riêng tư của bạn.</p>
+                <h3>1. Thu thập thông tin</h3>
+                <p>Chúng tôi có thể thu thập địa chỉ email nếu bạn đăng ký nhận bản tin.</p>
+                <h3>2. Cookie</h3>
+                <p>Website này sử dụng cookie để cải thiện trải nghiệm người dùng.</p>
+                <h3>3. Bảo mật</h3>
+                <p>Chúng tôi cam kết không bán thông tin cá nhân của bạn cho bên thứ ba.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contact Modal -->
+    <div id="contactModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeModal('contactModal')">&times;</span>
+            <h2>📞 Liên Hệ</h2>
+            <div class="modal-body">
+                <p>Nếu bạn có câu hỏi, vui lòng liên hệ qua email:</p>
+                <p class="contact-email">admin@dubaovangbac.com</p>
+            </div>
+        </div>
+    </div>
+
+
+
+    <!-- Add Transaction Modal -->
+    <div id="addTxModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Thêm Giao Dịch Mới</h2>
+                <span class="close" onclick="closeModal('addTxModal')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="addTxForm">
+                    <div class="form-group">
+                        <label>Loại Tài Sản</label>
+                        <div class="radio-group">
+                            <label class="radio-option">
+                                <input type="radio" name="txAsset" value="gold">
+                                <span>Vàng (Gold)</span>
+                            </label>
+                            <label class="radio-option">
+                                <input type="radio" name="txAsset" value="silver" checked>
+                                <span>Bạc (Silver)</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Thương Hiệu</label>
+                            <select id="txBrand" required>
+                                <option value="SJC">SJC</option>
+                                <option value="PHUQUY">Phú Quý</option>
+                                <option value="WORLD">Thế Giới (USD)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Ngày Mua</label>
+                            <input type="date" id="txDate" required>
+                        </div>
+                    </div>
+
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Số Lượng (Lượng/Oz)</label>
+                            <input type="number" id="txAmount" step="0.01" min="0.01" placeholder="Ví dụ: 1.5" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Giá Mua (VND/Lượng)</label>
+                            <input type="number" id="txPrice" step="1000" min="0" placeholder="Nhập giá mua..."
+                                required>
+                        </div>
+                    </div>
+
+                    <!-- Auto Price Suggestion -->
+                    <div class="price-suggest">
+                        <small>💡 Gợi ý giá hiện tại: <span id="suggestPrice" class="clickable-price">--</span></small>
+                    </div>
+
+                    <button type="submit" class="submit-btn">Lưu Giao Dịch</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/static/portfolio.js?v=2.2.0"></script>
+    <script src="/static/app-silver.js?v=2.2.0"></script>
+    <script>
+        // Modal functionality
+        function showPrivacyPolicy() {
+            document.getElementById('privacyModal').style.display = 'block';
+        }
+        function showContact() {
+            document.getElementById('contactModal').style.display = 'block';
+        }
+        function closeModal(id) {
+            document.getElementById(id).style.display = 'none';
+        }
+        window.onclick = function (event) {
+            if (event.target.className === 'modal') {
+                event.target.style.display = "none";
+            }
+        }
+    </script>
+</body>
+
+</html>

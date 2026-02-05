@@ -8,6 +8,7 @@ import json
 from datetime import datetime, timedelta
 from typing import Dict, Optional
 import requests
+import pandas as pd
 
 # Try to import yfinance
 try:
@@ -28,6 +29,11 @@ class RealTimeDataFetcher:
     SILVER_SYMBOL = "XAGUSD=X"  # Silver Spot (Matching Investing.com data)
     SILVER_FUTURES = "SI=F"     # Silver Futures (Backup)
     SILVER_ETF = "SLV"          # iShares Silver Trust (Last resort)
+    # Additional symbols for model prediction
+    GOLD_SYMBOL = "GC=F"       # Gold Futures
+    DXY_SYMBOL = "DX-Y.NYB"    # US Dollar Index
+    OIL_SYMBOL = "CL=F"        # Crude Oil
+    VIX_SYMBOL = "^VIX"        # CBOE Volatility Index
     
     def __init__(self, cache_duration_minutes: int = 5):
         """
@@ -39,6 +45,95 @@ class RealTimeDataFetcher:
         self.cache_duration = timedelta(minutes=cache_duration_minutes)
         self.cache = {}
         
+    def get_full_market_data(self) -> Dict:
+        """
+        Get all market data needed for prediction model.
+        Returns dictionary with: gold, silver, dxy, oil, vix
+        """
+        cache_key = 'full_market_data'
+        
+        # Check cache (shorter duration for live inference)
+        if self._is_cache_valid(cache_key):
+            return self.cache[cache_key]['data']
+            
+        result = {
+            'timestamp': datetime.now().isoformat(),
+            'gold_close': None,
+            'silver_close': None,
+            'dxy': None,
+            'oil': None,
+            'vix': None,
+            'error': None
+        }
+        
+        if HAS_YFINANCE:
+            try:
+                # Fetch all tickers at once
+                tickers = f"{self.GOLD_SYMBOL} {self.SILVER_SYMBOL} {self.DXY_SYMBOL} {self.OIL_SYMBOL} {self.VIX_SYMBOL}"
+                data = yf.download(tickers, period="1d", interval="1m", progress=False)
+                
+                # Get latest close prices
+                if not data.empty:
+                    # Handle multi-index columns if multiple tickers
+                    try:
+                        latest = data.iloc[-1]
+                        
+                        # Helper to safely get value from Series
+                        def get_val(symbol):
+                            if isinstance(data.columns, pd.MultiIndex):
+                                # Multi-level columns: (Price, Ticker)
+                                try:
+                                    val = data['Close'][symbol].iloc[-1]
+                                except:
+                                    val = data['Adj Close'][symbol].iloc[-1]
+                            else:
+                                # Single ticker or flat index (unlikely with multiple tickers)
+                                val = latest['Close']
+                            return float(val) if not pd.isna(val) else None
+
+                        result['gold_close'] = get_val(self.GOLD_SYMBOL)
+                        result['silver_close'] = get_val(self.SILVER_SYMBOL)
+                        result['dxy'] = get_val(self.DXY_SYMBOL)
+                        result['oil'] = get_val(self.OIL_SYMBOL)
+                        result['vix'] = get_val(self.VIX_SYMBOL)
+                        
+                    except Exception as e:
+                        print(f"Error parsing yfinance data: {e}")
+                        # Fallback to individual fetching if bulk fails
+                        pass
+            except Exception as e:
+                result['error'] = str(e)
+                
+        # Fill missing values with individual fetches if needed
+        if result['gold_close'] is None:
+            result['gold_close'] = self._fetch_single_price(self.GOLD_SYMBOL)
+        if result['dxy'] is None:
+            result['dxy'] = self._fetch_single_price(self.DXY_SYMBOL)
+        if result['oil'] is None:
+            result['oil'] = self._fetch_single_price(self.OIL_SYMBOL)
+        if result['vix'] is None:
+            result['vix'] = self._fetch_single_price(self.VIX_SYMBOL)
+            
+        # Update cache
+        self._update_cache(cache_key, result)
+        return result
+
+    def _fetch_single_price(self, symbol: str) -> Optional[float]:
+        """Fetch single ticker price."""
+        if not HAS_YFINANCE:
+            return None
+        try:
+            ticker = yf.Ticker(symbol)
+            info = ticker.info
+            price = info.get('regularMarketPrice') or info.get('previousClose')
+            if not price:
+                hist = ticker.history(period='1d')
+                if not hist.empty:
+                    price = float(hist['Close'].iloc[-1])
+            return float(price) if price else None
+        except:
+            return None
+
     def get_silver_price(self) -> Dict:
         """
         Get current silver price in USD per troy ounce.
@@ -195,18 +290,21 @@ class RealTimeDataFetcher:
         result['error'] = 'Live API unavailable'
         return result
     
-    def get_historical_prices(self, days: int = 30) -> Dict:
+    def get_historical_prices(self, days: int = 30, symbol: str = None) -> Dict:
         """
-        Get historical silver prices.
+        Get historical prices for a symbol (default Silver).
         
         Args:
             days: Number of days of history
+            symbol: Ticker symbol (default: SILVER_SYMBOL)
             
         Returns:
             Dictionary with historical price data
         """
+        target_symbol = symbol if symbol else self.SILVER_SYMBOL
+        
         result = {
-            'symbol': self.SILVER_SYMBOL,
+            'symbol': target_symbol,
             'period': f'{days}d',
             'timestamp': datetime.now().isoformat(),
             'data': [],
@@ -215,8 +313,29 @@ class RealTimeDataFetcher:
         
         if HAS_YFINANCE:
             try:
-                ticker = yf.Ticker(self.SILVER_SYMBOL)
-                hist = ticker.history(period=f'{days}d')
+                # Retry logic with fallbacks for Silver
+                symbols_to_try = [target_symbol]
+                if target_symbol == self.SILVER_SYMBOL:
+                    symbols_to_try = [self.SILVER_SYMBOL, self.SILVER_FUTURES, self.SILVER_ETF]
+                
+                hist = None
+                used_symbol = None
+                
+                for sym in symbols_to_try:
+                    try:
+                        ticker = yf.Ticker(sym)
+                        # Fetch slightly more data to ensure we have enough
+                        hist = ticker.history(period=f'{days}d')
+                        if not hist.empty:
+                            used_symbol = sym
+                            print(f"  ✓ Fetched history using {sym}")
+                            break
+                    except Exception as e:
+                        print(f"  ⚠️ Failed to fetch {sym}: {e}")
+                        continue
+                
+                if hist is None or hist.empty:
+                    raise Exception("No data found for any symbol")
                 
                 for date, row in hist.iterrows():
                     result['data'].append({
@@ -230,10 +349,7 @@ class RealTimeDataFetcher:
                     
             except Exception as e:
                 result['error'] = str(e)
-        else:
-            result['error'] = 'yfinance not available'
-        
-        return result
+                print(f"❌ Error in get_historical_prices: {e}")
     
     def update_csv_with_latest(self, csv_path: str) -> bool:
         """

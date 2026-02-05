@@ -22,6 +22,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.enhanced_predictor import EnhancedPredictor
 from src.gold_predictor import GoldPredictor
+from src.vietnam_gold_predictor import VietnamGoldPredictor
 from backend.realtime_data import RealTimeDataFetcher
 from src.scrapers.service import get_price_service
 from src.buy_score import calculate_buy_score
@@ -31,6 +32,7 @@ from src.time_machine import predict_portfolio_future
 # Global instances
 predictor: Optional[EnhancedPredictor] = None
 gold_predictor: Optional[GoldPredictor] = None
+vn_gold_predictor: Optional[VietnamGoldPredictor] = None
 data_fetcher: Optional[RealTimeDataFetcher] = None
 
 
@@ -52,6 +54,7 @@ async def lifespan(app: FastAPI):
     # Start model loading in background
     asyncio.create_task(load_model_background())
     asyncio.create_task(load_gold_model_background())
+    asyncio.create_task(load_vn_gold_model_background())
     
     elapsed = (datetime.now() - start_time).total_seconds()
     print(f"[{datetime.now().time()}] [OK] App startup complete in {elapsed:.2f}s (Model loading in background)", flush=True)
@@ -98,6 +101,37 @@ def _load_gold_model_logic():
         return p
     except Exception as e:
         print(f"   ❌ Gold model failed: {e}", flush=True)
+        return None
+
+
+async def load_vn_gold_model_background():
+    """Load Vietnam Gold model in background."""
+    global vn_gold_predictor
+    
+    print(f"[{datetime.now().time()}] ⏳ Background: Starting VN Gold model loading...", flush=True)
+    
+    try:
+        vn_gold_predictor = await asyncio.to_thread(_load_vn_gold_model_logic)
+        print(f"[{datetime.now().time()}] ✅ Background: VN Gold model loaded successfully!", flush=True)
+    except Exception as e:
+        print(f"[{datetime.now().time()}] ❌ Background: VN Gold model loading failed: {e}", flush=True)
+
+
+def _load_vn_gold_model_logic():
+    """Synchronous VN gold model loading logic."""
+    try:
+        print("   Attempting to load VietnamGoldPredictor...", flush=True)
+        p = VietnamGoldPredictor()
+        p.load_model()
+        # Load data for predictions
+        p.load_vietnam_data()
+        p.load_world_data()
+        p.merge_datasets()
+        p.create_transfer_features()
+        print("   ✓ Vietnam Gold model loaded", flush=True)
+        return p
+    except Exception as e:
+        print(f"   ❌ VN Gold model failed: {e}", flush=True)
         return None
 
 def _load_model_logic():
@@ -230,6 +264,131 @@ async def blog_guide():
     return FileResponse(path)
 
 
+# ========== DEDICATED PAGE ROUTES ==========
+@app.get("/silver")
+async def silver_page():
+    """Serve the dedicated Silver price prediction page."""
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'frontend', 'silver.html')
+    return FileResponse(path)
+
+
+@app.get("/gold")
+async def gold_page():
+    """Serve the dedicated Gold price prediction page."""
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'frontend', 'gold.html')
+    return FileResponse(path)
+
+
+# ========== VIETNAM GOLD API ENDPOINTS ==========
+@app.get("/api/gold-vn/predict")
+async def predict_vietnam_gold():
+    """
+    Dự đoán giá vàng SJC Việt Nam 7 ngày tới.
+    Sử dụng Transfer Learning từ mô hình giá vàng thế giới.
+    """
+    global vn_gold_predictor
+    
+    # Wait for model if loading (up to 5s)
+    if vn_gold_predictor is None:
+        import asyncio
+        for _ in range(10):
+            if vn_gold_predictor is not None:
+                break
+            await asyncio.sleep(0.5)
+    
+    if vn_gold_predictor is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Vietnam Gold model is loading. Please try again in a few seconds."
+        )
+    
+    try:
+        # Get live market data for real-time prediction
+        market_data = None
+        if data_fetcher:
+            try:
+                market_data = data_fetcher.get_full_market_data()
+            except Exception as e:
+                print(f"Error fetching live market data: {e}")
+
+        # Predict
+        if market_data and market_data.get('gold_close'):
+            predictions = vn_gold_predictor.predict_live(market_data)
+            is_live = True
+        else:
+            predictions = vn_gold_predictor.predict()
+            is_live = False
+            
+        model_info = vn_gold_predictor.get_model_info()
+        model_info['is_live_prediction'] = is_live
+        if market_data:
+            model_info['live_market_data'] = market_data
+        
+        return {
+            "success": True,
+            "timestamp": datetime.now().isoformat(),
+            "currency": "VND",
+            "unit": "triệu VND/lượng",
+            "predictions": predictions,
+            "model_info": model_info
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/gold-vn/historical")
+async def get_vietnam_gold_historical(days: int = Query(30, ge=1, le=365)):
+    """Get historical Vietnam SJC gold prices."""
+    global vn_gold_predictor
+    
+    if vn_gold_predictor is None:
+        import asyncio
+        for _ in range(10):
+            if vn_gold_predictor is not None:
+                break
+            await asyncio.sleep(0.5)
+    
+    if vn_gold_predictor is None:
+        raise HTTPException(status_code=503, detail="Model is loading")
+    
+    try:
+        data = vn_gold_predictor.get_historical_data(days)
+        return {
+            "success": True,
+            "currency": "VND",
+            "unit": "triệu VND/lượng",
+            "count": len(data),
+            "data": data
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/gold-vn/accuracy")
+async def get_vietnam_gold_accuracy():
+    """Get Vietnam Gold model accuracy metrics."""
+    global vn_gold_predictor
+    
+    if vn_gold_predictor is None:
+        import asyncio
+        for _ in range(10):
+            if vn_gold_predictor is not None:
+                break
+            await asyncio.sleep(0.5)
+    
+    if vn_gold_predictor is None:
+        raise HTTPException(status_code=503, detail="Model is loading")
+    
+    try:
+        metrics = vn_gold_predictor.get_accuracy_metrics()
+        return {
+            "success": True,
+            "metrics": metrics
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/predict", response_model=PredictionResponse)
 async def predict(
     currency: str = Query("VND", description="Currency: VND or USD"),
@@ -269,21 +428,63 @@ async def predict(
                 if rate_data['rate']:
                     predictor.set_exchange_rate(rate_data['rate'])
         
+        # Get live data for real-time prediction
+        market_data = None
+        if data_fetcher:
+            try:
+                # This fetches latest Silver, Gold, DXY, VIX
+                market_data = data_fetcher.get_full_market_data()
+            except Exception as e:
+                print(f"Error fetching live market data: {e}")
+
         # Make prediction
-        result = predictor.predict(in_vnd=(currency.upper() == "VND"))
+        if market_data and market_data.get('silver_close'):
+            # Use Live Prediction
+            predictions = predictor.predict_live(market_data)
+            
+            # predict_live returns clean list of dicts. 
+            # We need full structure like predict() returns.
+            # Get base structure (using stale/memory data is fine for non-prediction fields)
+            base_result = predictor.predict(in_vnd=(currency.upper() == "VND"))
+            
+            # Inject live predictions
+            # Re-map predict_live output (list of small dicts) to full structure if needed
+            # Or just use the predictions list directly?
+            # predict_live returns: [{'date':..., 'price':..., 'price_usd':...}, ...]
+            
+            summary_prices = [p['price'] for p in predictions]
+            last_price = base_result['last_known']['price']
+            
+            # Reconstruct result wrapper
+            result = base_result
+            result['predictions'] = predictions
+            result['summary'] = {
+                'min_price': float(min(summary_prices)),
+                'max_price': float(max(summary_prices)),
+                'avg_price': float(np.mean(summary_prices)),
+                'trend': 'up' if summary_prices[-1] > last_price else 'down',
+                'total_change': float(summary_prices[-1] - last_price),
+                'total_change_pct': float((summary_prices[-1] - last_price) / last_price * 100)
+            }
+            
+            # Add Live Metadata
+            result['is_live_prediction'] = True
+            result['live_market_data'] = market_data
+            
+        else:
+            # Fallback to standard prediction
+            result = predictor.predict(in_vnd=(currency.upper() == "VND"))
+            result['is_live_prediction'] = False
         
-        return PredictionResponse(
-            success=True,
-            timestamp=result['timestamp'],
-            currency=result['currency'],
-            unit=result['unit'],
-            exchange_rate=result['exchange_rate'],
-            last_known=result['last_known'],
-            predictions=result['predictions'],
-            summary=result['summary'],
-            market_drivers=predictor.get_market_drivers(),
-            accuracy_check=predictor.get_yesterday_accuracy()
-        )
+        # Add extra metadata fields to result to match ResponseModel
+        response_data = {
+            "success": True,
+            **result, # Unpack standard result
+            "market_drivers": predictor.get_market_drivers(),
+            "accuracy_check": predictor.get_yesterday_accuracy()
+        }
+        
+        return response_data
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -390,8 +591,99 @@ async def get_model_info():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ========== GOLD ENDPOINTS ==========
+@app.get("/api/performance-transparency")
+async def get_performance_transparency():
+    """
+    Get detailed performance metrics for Transparency UI (Silver).
+    Matches structure used by Gold page.
+    """
+    global predictor, data_fetcher
+    
+    if predictor is None:
+        return {"success": False, "error": "Model loading"}
+        
+    try:
+        # Get basic accuracy data from predictor
+        acc_data = predictor.get_yesterday_accuracy()
+        
+        if not acc_data:
+            return {"success": False, "error": "Insufficient data"}
+            
+        # Get Exchange Rate
+        exchange_rate = 25450 # Fallback
+        if data_fetcher:
+            rate_data = data_fetcher.get_usd_vnd_rate()
+            if rate_data['rate']:
+                exchange_rate = rate_data['rate']
+        
+        # Calculate derived metrics
+        acc_pct = acc_data['accuracy']
+        grade = "Good"
+        grade_color = "#3498db" # Blue
+        comment = "Model performing well within expected range."
+        
+        if acc_pct >= 97:
+            grade = "Excellent"
+            grade_color = "#2ecc71" # Green
+            comment = "High precision. Strong predictive signals detected."
+        elif acc_pct >= 95:
+            grade = "Very Good"
+            grade_color = "#27ae60"
+            comment = "Solid performance. Minor deviation observed."
+        elif acc_pct < 90:
+            grade = "Fair"
+            grade_color = "#f1c40f" # Yellow
+            comment = "Moderate deviation due to market volatility."
+        if acc_pct < 85:
+            grade = "Monitor"
+            grade_color = "#e74c3c" # Red
+            comment = "High volatility impacting accuracy."
 
+        # Convert to VND for display
+        # Note: 1 oz Silver = 0.829 lượng roughly? 
+        # Actually conversion is: Price USD/oz * Exchange Rate * 1.20565 (oz->luong) ?
+        # Wait, get_yesterday_accuracy returns USD.
+        # Predictor._convert_to_vnd logic: price_usd * self.exchange_rate * 1.20565
+        OZ_TO_LUONG = 1.20565
+        
+        pred_vnd = acc_data['predicted_usd'] * exchange_rate * OZ_TO_LUONG * 1000
+        actual_vnd = acc_data['actual_usd'] * exchange_rate * OZ_TO_LUONG * 1000
+        
+        # Construct response
+        performance = {
+            "date": acc_data['date'],
+            "forecast": {
+                "usd": round(acc_data['predicted_usd'], 2),
+                "vnd": round(pred_vnd, -3) # Round to thousand
+            },
+            "actual": {
+                "usd": round(acc_data['actual_usd'], 2),
+                "vnd": round(actual_vnd, -3)
+            },
+            "difference": {
+                "percentage": round(((acc_data['predicted_usd'] - acc_data['actual_usd']) / acc_data['actual_usd']) * 100, 2),
+                "absolute_usd": round(abs(acc_data['predicted_usd'] - acc_data['actual_usd']), 2)
+            },
+            "accuracy": {
+                "overall": round(acc_pct, 2),
+                "grade": grade,
+                "grade_color": grade_color,
+                "comment": comment,
+                "direction_correct": None # Not implemented in get_yesterday_accuracy yet
+            },
+            "model_confidence": "High" if acc_pct > 95 else "Medium"
+        }
+        
+        return {
+            "success": True,
+            "performance": performance
+        }
+    except Exception as e:
+        print(f"Error in performance transparency: {e}")
+        return {"success": False, "error": str(e)}
+
+
+# ========== GOLD ENDPOINTS ==========
 @app.get("/api/gold/predict")
 async def gold_predict(
     currency: str = Query("VND", description="Currency: VND or USD"),
@@ -1228,6 +1520,23 @@ if os.path.exists(frontend_dir):
     @app.get("/favicon.ico")
     async def get_favicon():
         return FileResponse(os.path.join(frontend_dir, "favicon.png"))
+
+    # Serve HTML pages from root
+    @app.get("/")
+    async def get_index():
+        return FileResponse(os.path.join(frontend_dir, "index.html"))
+
+    @app.get("/index.html")
+    async def get_index_explicit():
+        return FileResponse(os.path.join(frontend_dir, "index.html"))
+
+    @app.get("/silver.html")
+    async def get_silver_page():
+        return FileResponse(os.path.join(frontend_dir, "silver.html"))
+
+    @app.get("/gold.html")
+    async def get_gold_page():
+        return FileResponse(os.path.join(frontend_dir, "gold.html"))
 
 
 if __name__ == "__main__":
