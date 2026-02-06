@@ -94,9 +94,6 @@
                                 d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
                         </svg>
                     </button>
-                    <button class="calc-btn" onclick="showCalculator()" title="Tính lãi/lỗ">
-                        🧮
-                    </button>
                 </div>
             </div>
         </header>
@@ -621,87 +618,6 @@
             </div>
         </div>
     </div>
-    </div>
-
-    <!-- Calculator Modal -->
-    <div id="calculatorModal" class="modal">
-        <div class="modal-content calc-modal-content">
-            <span class="close-modal" onclick="closeModal('calculatorModal')">&times;</span>
-            <h2>🧮 Tính Lãi/Lỗ Dự Kiến</h2>
-            <div class="calc-body">
-                <div class="form-group">
-                    <label>Loại tài sản</label>
-                    <select id="calcAsset" onchange="updateCalcAsset()">
-                        <option value="silver">🥈 Bạc</option>
-                        <option value="gold">🥇 Vàng</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Giá mua vào (VND/luồng)</label>
-                    <input type="number" id="calcBuyPrice" placeholder="Nhập giá bạn đã mua">
-                </div>
-                <div class="form-group">
-                    <label>Số lượng (Lượng)</label>
-                    <input type="number" id="calcAmount" value="1" min="0.1" step="0.1">
-                </div>
-
-                <div class="calc-results">
-                    <div class="calc-section">
-                        <h4>💰 Thực Tế Hiện Tại</h4>
-                        <div class="calc-row">
-                            <span>Giá hiện tại:</span>
-                            <span id="calcCurrentPrice">--</span>
-                        </div>
-                        <div class="calc-row">
-                            <span>Lãi/Lỗ ngay:</span>
-                            <span id="calcProfitNow" class="calc-value">--</span>
-                        </div>
-                        <div class="calc-row">
-                            <span>Tỷ suất lãi/lỗ:</span>
-                            <span id="calcProfitNowPercent" class="calc-value">--</span>
-                        </div>
-                    </div>
-
-                    <div class="divider"></div>
-
-                    <div class="calc-section">
-                        <h4>📈 Dự Báo 7 Ngày</h4>
-                        <div class="calc-row">
-                            <span>Giá dự báo (Day 7):</span>
-                            <span id="calcPredPrice">--</span>
-                        </div>
-                        <div class="calc-row">
-                            <span>Lãi/Lỗ dự kiến:</span>
-                            <span id="calcProfitPred" class="calc-value">--</span>
-                        </div>
-                        <div class="calc-row">
-                            <span>Tỷ suất dự kiến:</span>
-                            <span id="calcProfitPredPercent" class="calc-value">--</span>
-                        </div>
-                    </div>
-
-                    <div class="calc-scenarios">
-                        <h4>🎯 Các Kịch Bản</h4>
-                        <div class="scenario-grid">
-                            <div class="scenario-item">
-                                <span class="scenario-label">Tốt (Best Case +10%):</span>
-                                <span id="calcBestCase" class="scenario-value positive">--</span>
-                            </div>
-                            <div class="scenario-item">
-                                <span class="scenario-label">Xấu (Worst Case -10%):</span>
-                                <span id="calcWorstCase" class="scenario-value negative">--</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="calc-notes">
-                    <p class="calc-note">⚠️ Đã tính chênh lệch mua/bán thị trường (~2%)</p>
-                    <p class="calc-note">📊 Phí giao dịch: 0.1% per trade (ước tính)</p>
-                    <p class="calc-note">🏛️ Thuế TNCN: 10% trên lợi nhuận (áp dụng nếu có)</p>
-                </div>
-            </div>
-        </div>
     </div>
 
     <!-- Scripts -->

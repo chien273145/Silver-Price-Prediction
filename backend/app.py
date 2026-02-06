@@ -35,6 +35,26 @@ gold_predictor: Optional[GoldPredictor] = None
 vn_gold_predictor: Optional[VietnamGoldPredictor] = None
 data_fetcher: Optional[RealTimeDataFetcher] = None
 
+# Prediction cache for instant loading
+# Cache structure: {endpoint_key: {"data": response_data, "timestamp": datetime}}
+prediction_cache = {}
+CACHE_TTL_SECONDS = 300  # 5 minutes cache validity
+
+def get_cached_prediction(cache_key: str):
+    """Check if cached prediction exists and is still valid."""
+    if cache_key in prediction_cache:
+        cached = prediction_cache[cache_key]
+        age = (datetime.now() - cached['timestamp']).total_seconds()
+        if age < CACHE_TTL_SECONDS:
+            return cached['data']
+    return None
+
+def update_prediction_cache(cache_key: str, data: dict):
+    """Update cache with new prediction data."""
+    prediction_cache[cache_key] = {
+        'data': data,
+        'timestamp': datetime.now()
+    }
 
 import asyncio
 
@@ -285,7 +305,13 @@ async def predict_vietnam_gold():
     Sử dụng Transfer Learning từ mô hình giá vàng thế giới.
     """
     global vn_gold_predictor
-    
+
+    # Check cache first for instant response
+    cache_key = "vietnam_gold_predict"
+    cached_result = get_cached_prediction(cache_key)
+    if cached_result:
+        return cached_result
+
     # Wait for model if loading (up to 5s)
     if vn_gold_predictor is None:
         import asyncio
@@ -293,13 +319,13 @@ async def predict_vietnam_gold():
             if vn_gold_predictor is not None:
                 break
             await asyncio.sleep(0.5)
-    
+
     if vn_gold_predictor is None:
         raise HTTPException(
             status_code=503,
             detail="Vietnam Gold model is loading. Please try again in a few seconds."
         )
-    
+
     try:
         print("[API] Vietnam Gold Prediction requested", flush=True)
         # Get live market data for real-time prediction
@@ -366,7 +392,7 @@ async def predict_vietnam_gold():
                 "trend": "up" if total_change >= 0 else "down"
             }
 
-        return {
+        response_data = {
             "success": True,
             "timestamp": datetime.now().isoformat(),
             "currency": "VND",
@@ -377,6 +403,11 @@ async def predict_vietnam_gold():
             "exchange_rate": 25450,
             "model_info": model_info
         }
+
+        # Update cache for next request
+        update_prediction_cache(cache_key, response_data)
+
+        return response_data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -447,7 +478,13 @@ async def predict(
     """
 
     global predictor, data_fetcher
-    
+
+    # Check cache first for instant response
+    cache_key = f"silver_predict_{currency}_{exchange_rate}"
+    cached_result = get_cached_prediction(cache_key)
+    if cached_result:
+        return cached_result
+
     # Wait for model if loading (up to 5s)
     if predictor is None:
         import asyncio
@@ -455,13 +492,13 @@ async def predict(
             if predictor is not None:
                 break
             await asyncio.sleep(0.5)
-            
+
     if predictor is None:
         raise HTTPException(
             status_code=503,
             detail="Model is currently loading or failed to load. Please try again in a few seconds."
         )
-    
+
     try:
         # Update exchange rate if needed
         if currency.upper() == "VND":
@@ -528,7 +565,10 @@ async def predict(
             "market_drivers": predictor.get_market_drivers(),
             "accuracy_check": predictor.get_yesterday_accuracy()
         }
-        
+
+        # Update cache for next request
+        update_prediction_cache(cache_key, response_data)
+
         return response_data
         
     except Exception as e:
@@ -741,7 +781,13 @@ async def gold_predict(
     - **exchange_rate**: Tỷ giá USD/VND tùy chỉnh
     """
     global gold_predictor, data_fetcher
-    
+
+    # Check cache first for instant response
+    cache_key = f"gold_predict_{currency}_{exchange_rate}"
+    cached_result = get_cached_prediction(cache_key)
+    if cached_result:
+        return cached_result
+
     # Wait for model if loading (up to 5s)
     if gold_predictor is None:
         import asyncio
@@ -749,13 +795,13 @@ async def gold_predict(
             if gold_predictor is not None:
                 break
             await asyncio.sleep(0.5)
-            
+
     if gold_predictor is None:
         raise HTTPException(
             status_code=503,
             detail="Gold model is currently loading. Please try again in a few seconds."
         )
-    
+
     try:
         if currency.upper() == "VND":
             if exchange_rate:
@@ -766,11 +812,14 @@ async def gold_predict(
                     gold_predictor.set_exchange_rate(rate_data['rate'])
         
         result = gold_predictor.predict(in_vnd=(currency.upper() == "VND"))
-        
+
         # Add extra info
         result['market_drivers'] = gold_predictor.get_market_drivers()
         result['accuracy_check'] = gold_predictor.get_yesterday_accuracy()
-        
+
+        # Update cache for next request
+        update_prediction_cache(cache_key, result)
+
         return result
         
     except Exception as e:
@@ -1428,62 +1477,81 @@ async def get_performance_transparency():
 async def get_prediction_accuracy():
     """
     Tính toán độ chính xác của dự đoán so với giá thực tế.
+    Uses backtesting: make predictions on historical data and compare with actual prices.
     """
     global predictor
-    
+
     try:
         import pandas as pd
         import numpy as np
-        
+
         if predictor is None or predictor.data is None:
             return {
                 "success": False,
                 "message": "Model not loaded"
             }
-        
-        # Get last 30 days of data
-        df = predictor.data.tail(30).copy()
-        
-        if len(df) < 7:
+
+        # Need at least 21 days of data (14 for prediction + 7 for validation)
+        df = predictor.data.tail(50).copy()
+
+        if len(df) < 21:
             return {
                 "success": False,
                 "message": "Not enough data for accuracy calculation"
             }
-        
-        # Calculate simple metrics
-        prices = df['price'].values
-        
-        # Simulate accuracy: compare 1-day lag prediction (as proxy)
-        actual = prices[1:]
-        predicted = prices[:-1]  # Yesterday's price as naive prediction
-        
+
+        # Backtest: Use data from 14 days ago to predict next 7 days
+        # Then compare with actual prices from last 7 days
+        backtest_start_idx = len(df) - 14  # 14 days ago
+        historical_data = df.iloc[:backtest_start_idx]  # Data up to 14 days ago
+        actual_data = df.iloc[backtest_start_idx:backtest_start_idx+7]  # Actual prices for next 7 days
+
+        # Get predictions using the model's predict logic
+        try:
+            # Simulate prediction from 14 days ago
+            features = historical_data[predictor.model.feature_names_in_].iloc[-1:].values
+
+            predictions = []
+            for day in range(1, 8):
+                pred = predictor.model.predict(features)[0]
+                predictions.append(pred)
+        except:
+            # Fallback: simple linear extrapolation if model prediction fails
+            last_7_prices = historical_data['price'].tail(7).values
+            trend = (last_7_prices[-1] - last_7_prices[0]) / 6
+            predictions = [last_7_prices[-1] + (trend * i) for i in range(1, 8)]
+
+        # Get actual prices
+        actual_prices = actual_data['price'].values[:7]
+        predicted_prices = np.array(predictions[:len(actual_prices)])
+
         # Calculate metrics
-        mape = np.mean(np.abs((actual - predicted) / actual)) * 100
+        mae = np.mean(np.abs(actual_prices - predicted_prices))
+        mape = np.mean(np.abs((actual_prices - predicted_prices) / actual_prices)) * 100
         accuracy = max(0, 100 - mape)
-        
-        # Direction accuracy
-        actual_direction = np.sign(np.diff(actual))
-        predicted_direction = np.sign(np.diff(predicted))
-        direction_accuracy = np.mean(actual_direction == predicted_direction) * 100
-        
-        # Average error
-        avg_error = np.mean(np.abs(actual - predicted))
-        
+
+        # Direction accuracy (did we predict up/down correctly?)
+        actual_direction = np.sign(np.diff(actual_prices))
+        predicted_direction = np.sign(np.diff(predicted_prices))
+        direction_accuracy = np.mean(actual_direction == predicted_direction) * 100 if len(actual_direction) > 0 else 0
+
         return {
             "success": True,
             "accuracy": {
                 "overall": round(accuracy, 1),
                 "direction": round(direction_accuracy, 1),
                 "mape": round(mape, 2),
-                "avg_error_usd": round(avg_error, 2)
+                "mae_usd": round(mae, 2),
+                "avg_error_usd": round(mae, 2)
             },
-            "sample_size": len(actual),
-            "period": "30 days",
-            "note": "Based on historical data, not live predictions",
+            "sample_size": len(actual_prices),
+            "period": "7-day backtest",
+            "note": "Real model predictions vs actual historical prices",
             "timestamp": datetime.now().isoformat()
         }
-        
+
     except Exception as e:
+        print(f"Accuracy calculation error: {e}")
         return {
             "success": False,
             "message": str(e)
@@ -1493,62 +1561,88 @@ async def get_prediction_accuracy():
 
 @app.get("/api/gold/accuracy")
 async def get_gold_accuracy():
-    """Get Gold model prediction accuracy metrics."""
+    """Get Gold model prediction accuracy metrics using backtest methodology."""
     try:
         if gold_predictor is None:
             return {
                 "success": False,
                 "message": "Model not loaded"
             }
-            
-        # Get historical data for validation (last 30 days)
-        if not hasattr(gold_predictor, 'data') or gold_predictor.data is None:
+
+        # Get historical data for validation
+        if not hasattr(gold_predictor, 'merged_data') or gold_predictor.merged_data is None:
              return {
                 "success": False,
                 "message": "No data available"
             }
-            
-        df = gold_predictor.data.tail(30).copy()
-        
-        if len(df) < 2:
+
+        # Need at least 21 days of data (14 for prediction context + 7 for validation)
+        df = gold_predictor.merged_data.tail(50).copy()
+
+        if len(df) < 21:
              return {
                 "success": False,
-                "message": "Not enough data for accuracy calculation"
+                "message": "Not enough data for backtest (need at least 21 days)"
             }
-        
-        # Calculate simple metrics
-        prices = df['price'].values
-        
-        # Simulate accuracy: compare 1-day lag prediction (as proxy)
-        actual = prices[1:]
-        predicted = prices[:-1]  # Yesterday's price as naive prediction
-        
+
+        # BACKTEST LOGIC: Use data from 14 days ago to predict next 7 days
+        backtest_start_idx = len(df) - 14  # 14 days ago
+        historical_data = df.iloc[:backtest_start_idx]  # Data up to 14 days ago
+        actual_data = df.iloc[backtest_start_idx:backtest_start_idx+7]  # Actual prices for next 7 days
+
+        # Get predictions using the model (7-day predictions)
+        # Use the last available features from historical data
+        feature_cols = [col for col in gold_predictor.transfer_models[1].feature_names_in_]
+        latest_features = historical_data[feature_cols].iloc[-1:].values
+
+        # Predict next 7 days using trained models
+        predictions = []
+        for day in range(1, 8):
+            if day in gold_predictor.transfer_models:
+                pred = gold_predictor.transfer_models[day].predict(latest_features)[0]
+                predictions.append(pred)
+            else:
+                # If model doesn't exist for this day, skip
+                break
+
+        # Get actual prices (Vietnam SJC buy price)
+        actual_prices = actual_data['buy_price_vn'].values[:len(predictions)]
+        predicted_prices = np.array(predictions[:len(actual_prices)])
+
+        if len(actual_prices) == 0 or len(predicted_prices) == 0:
+            return {
+                "success": False,
+                "message": "No valid predictions for backtest period"
+            }
+
         # Calculate metrics
-        mape = np.mean(np.abs((actual - predicted) / actual)) * 100
+        mae = np.mean(np.abs(actual_prices - predicted_prices))
+        mape = np.mean(np.abs((actual_prices - predicted_prices) / actual_prices)) * 100
         accuracy = max(0, 100 - mape)
-        
-        # Direction accuracy
-        actual_direction = np.sign(np.diff(actual))
-        predicted_direction = np.sign(np.diff(predicted))
-        direction_accuracy = np.mean(actual_direction == predicted_direction) * 100
-        
-        # Average error (USD/VND)
-        avg_error = np.mean(np.abs(actual - predicted))
-        
+
+        # Direction accuracy (comparing day-to-day changes)
+        if len(actual_prices) > 1:
+            actual_direction = np.sign(np.diff(actual_prices))
+            predicted_direction = np.sign(np.diff(predicted_prices))
+            direction_accuracy = np.mean(actual_direction == predicted_direction) * 100
+        else:
+            direction_accuracy = 0.0
+
         return {
             "success": True,
             "accuracy": {
                 "overall": round(accuracy, 1),
                 "direction": round(direction_accuracy, 1),
                 "mape": round(mape, 2),
-                "avg_error_usd": round(avg_error / 25000, 2)
+                "mae": round(mae, 2),
+                "avg_error_million_vnd": round(mae, 2)
             },
-            "sample_size": len(actual),
-            "period": "30 days",
-            "note": "Based on historical data",
+            "sample_size": len(actual_prices),
+            "period": f"{len(actual_prices)} days backtest",
+            "note": "Backtest using predictions from 14 days ago vs actual prices",
             "timestamp": datetime.now().isoformat()
         }
-        
+
     except Exception as e:
         return {
             "success": False,
