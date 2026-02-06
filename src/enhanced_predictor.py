@@ -57,7 +57,7 @@ class EnhancedPredictor:
             raise FileNotFoundError(f"Enhanced dataset not found. Run fetch_external_data.py first.")
         
         self.data = pd.read_csv(self.data_path)
-        self.data['Date'] = pd.to_datetime(self.data['Date'])
+        self.data['Date'] = pd.to_datetime(self.data['Date'], format='mixed', errors='coerce')
         self.data = self.data.sort_values('Date').reset_index(drop=True)
         
         # Rename for consistency
