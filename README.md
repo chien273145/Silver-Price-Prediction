@@ -1,84 +1,82 @@
-# 🥈 Silver Price Prediction System
+# DuBaoVangBac.com - AI Gold & Silver Price Prediction
 
-Hệ thống AI dự đoán giá bạc 7 ngày sử dụng **Machine Learning (Ridge Regression)** tích hợp Real-time Data từ Yahoo Finance.
+Hệ thống AI dự đoán giá **Vàng** và **Bạc** 7 ngày tới sử dụng **Ridge Regression** với dữ liệu real-time từ Yahoo Finance.
 
-## ✨ Tính năng
+**Live**: [dubaovangbac.com](https://dubaovangbac.com)
 
-- 🤖 **AI Model**: Ridge Regression (R² = 0.96, MAPE = 3.37%) - Dự đoán cực nhanh và chính xác.
-- 💱 **Hỗ trợ VND**: Tự động chuyển đổi từ USD sang VND (bao gồm Premium thị trường VN ~24%).
-- 📊 **Dashboard đẹp**: Giao diện web hiện đại với biểu đồ tương tác Chart.js.
-- 🔄 **Real-time**: Tự động lấy giá Spot Silver (XAG/USD) mới nhất từ Yahoo Finance.
-- 🌐 **REST API**: FastAPI backend mạnh mẽ.
-- ☁️ **Deploy Ready**: Sẵn sàng deploy miễn phí lên Render.com.
+## Tính Năng
 
-## 📁 Cấu trúc dự án
+- **3 Mô hình AI**: Silver (R²=0.96), World Gold (R²=0.91), Vietnam SJC Gold (Transfer Learning)
+- **110+ Features**: RSI, MAs, Bollinger Bands, ATR, DXY, VIX, Oil, US10Y...
+- **Bảng giá trong nước**: Scraping real-time từ BTMC, Phú Quý, Ancarat, WebGia
+- **Portfolio Manager**: Sổ tài sản + AI Time Machine dự báo tương lai
+- **Fear & Greed Index**: Chỉ số tâm lý thị trường
+- **AI Buy Score**: Điểm mua/bán 0-100
+- **Blog SEO**: 5 bài phân tích chuyên sâu
+- **Auto Retrain**: GitHub Actions retrain mỗi ngày 00:00 VN
+
+## Cấu Trúc
 
 ```
-Predict_Gia_Bac/
-├── dataset/                    # Dữ liệu giá bạc
-├── src/                        # Source code AI
-│   ├── unified_predictor.py   # Predictor (Ridge + Realtime)
-│   ├── train_ridge.py         # Training script
-├── backend/                    # FastAPI Backend
-│   ├── app.py                 # API endpoints
-│   └── realtime_data.py       # Yahoo Finance integration
-├── frontend/                   # Web Dashboard
-├── models/                     # Trained models
+├── backend/
+│   ├── app.py                  # FastAPI server (40+ endpoints)
+│   └── realtime_data.py        # Yahoo Finance data fetcher
+├── src/
+│   ├── enhanced_predictor.py   # Silver model (Ridge Regression)
+│   ├── gold_predictor.py       # World Gold model
+│   ├── vietnam_gold_predictor.py # VN SJC Gold (Transfer Learning)
+│   ├── buy_score.py            # AI Buy Score calculator
+│   ├── time_machine.py         # Portfolio future prediction
+│   ├── news_sentiment.py       # News sentiment analysis
+│   └── scrapers/               # Vietnamese price scrapers
+├── scripts/
+│   └── daily_update.py         # Daily retraining pipeline
+├── frontend/
+│   ├── index.html, silver.html, gold.html  # Dashboards
+│   ├── app.js, app-gold.js, app-silver.js  # Frontend logic
+│   ├── styles.css              # UI styling
+│   └── blog/                   # 5 SEO blog posts
+├── models/                     # Trained ML models (.pkl)
+├── dataset/                    # Training data (.csv)
+├── .github/workflows/          # GitHub Actions CI/CD
 ├── requirements.txt
-├── render.yaml                # Render config
-├── DEPLOY_GUIDE.md            # Hướng dẫn Deploy
-└── push_to_github.bat         # Script push code tự động
+├── render.yaml                 # Render.com deployment config
+└── Procfile
 ```
 
-## 🚀 Hướng dẫn cài đặt
-
-### 1. Cài đặt dependencies
+## Cài Đặt Local
 
 ```bash
 pip install -r requirements.txt
+uvicorn backend.app:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-### 2. Chạy server (Local)
+Truy cập: http://localhost:8000
 
-```bash
-python -m uvicorn backend.app:app --host 0.0.0.0 --port 8000 --reload
-```
-Truy cập Dashboard: http://localhost:8000
+## API Endpoints
 
-## ☁️ Hướng dẫn Deploy (GitHub & Render)
+| Endpoint | Mô tả |
+|----------|-------|
+| `/api/predict` | Dự đoán giá bạc 7 ngày |
+| `/api/gold/predict` | Dự đoán giá vàng thế giới 7 ngày |
+| `/api/gold-vn/predict` | Dự đoán giá vàng SJC Việt Nam |
+| `/api/historical` | Dữ liệu lịch sử |
+| `/api/prices/local` | Bảng giá vàng trong nước |
+| `/api/market-analysis` | Phân tích thị trường AI |
+| `/api/fear-greed` | Fear & Greed Index |
+| `/api/buy-score` | AI Buy Score |
+| `/api/news` | Tin tức thị trường |
+| `/api/health` | Health check |
+| `/docs` | Swagger API Documentation |
 
-### Bước 1: Push code lên GitHub
-Nếu bạn chưa cài Git, hãy tải và cài đặt Git. Sau đó chạy file script tự động:
+## Tech Stack
 
-1. Chạy file `push_to_github.bat`
-2. Đăng nhập GitHub khi được yêu cầu
+- **Backend**: Python 3.11, FastAPI, scikit-learn, yfinance
+- **Frontend**: HTML/CSS/JS, Chart.js
+- **ML**: Ridge Regression, Transfer Learning, PCA
+- **Deploy**: Render.com (Free), GitHub Actions, UptimeRobot
+- **SEO**: Sitemap, robots.txt, Open Graph, Structured Data
 
-### Bước 2: Deploy lên Render.com
-Xem hướng dẫn chi tiết từng bước tại file [DEPLOY_GUIDE.md](DEPLOY_GUIDE.md).
+## License
 
-## 📡 API Endpoints
-
-| Endpoint | Method | Mô tả |
-|----------|--------|-------|
-| `/api/predict` | GET | Dự đoán giá 7 ngày (tự động fetch realtime) |
-| `/api/historical` | GET | Dữ liệu lịch sử |
-| `/api/realtime` | GET | Giá bạc & tỷ giá hiện tại |
-| `/api/metrics` | GET | Độ chính xác mô hình |
-
-## 🧠 Về mô hình AI
-
-**Ridge Regression** được chọn thay thế LSTM vì các ưu điểm vượt trội:
-- **Độ chính xác cao hơn**: R²=0.96 vs R²=0.56 (LSTM)
-- **Tốc độ**: Train < 5 giây, Dự đoán < 0.1 giây
-- **Features**: 110 chỉ số kỹ thuật (RSI, MAs, Bollinger Bands, Volatility...)
-
-## 💱 Định giá Việt Nam
-
-Hệ thống điều chỉnh giá theo thực tế thị trường Việt Nam:
-```
-Giá VND = Giá USD × 1.20565 × Tỷ giá × 1.24 (Vietnam Premium)
-```
-*Premium 24% phản ánh chi phí nhập khẩu, thuế và biên lợi nhuận tại Việt Nam.*
-
-## 📝 License
 MIT License

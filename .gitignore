@@ -18,6 +18,7 @@ ENV/
 # OS
 .DS_Store
 Thumbs.db
+nul
 
 # Logs
 *.log
@@ -28,6 +29,25 @@ Thumbs.db
 
 # Jupyter
 .ipynb_checkpoints/
+
+# Debug & test artifacts
+debug_*.py
+test_*.py
+test_*.html
+test_*.txt
+verify_*.py
+fetch_html.py
+*.html.bak
+overfitting_report.txt
+
+# HTML source samples (scraped pages)
+btmc.html
+webgia.html
+giabac_vn_source.html
+
+# Temp files
+Untitled-*
+*.tmp
 
 # Don't ignore these - needed for deployment
 !models/
