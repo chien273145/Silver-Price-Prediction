@@ -12,7 +12,7 @@ from src.scrapers.sjc_scraper import SJCScraper
 from src.vietnam_gold_predictor import VietnamGoldPredictor
 from backend.realtime_data import RealTimeDataFetcher
 
-DATASET_DIR = os.path.join('data', 'datasets')
+DATASET_DIR = 'dataset'  # Fixed: Correct directory name
 SJC_CSV_PATH = os.path.join(DATASET_DIR, 'gold_price_sjc_complete.csv')
 
 def update_sjc_data():
@@ -60,8 +60,7 @@ def update_sjc_data():
         new_row = {
             'date': today_str,
             'buy_price': target_item.buy_price / 1_000_000, # Convert to Million VND
-            'sell_price': target_item.sell_price / 1_000_000,
-            'updated_at': datetime.now().isoformat()
+            'sell_price': target_item.sell_price / 1_000_000
         }
         
         # Calculate derived fields if they exist in CSV (mid_price, etc) handled by loader usually?
