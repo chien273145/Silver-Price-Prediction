@@ -1,4 +1,15 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://silver-price-prediction.onrender.com/sitemap.xml
+# Main Sitemap
+Sitemap: https://dubaovangbac.com/sitemap.xml
+
+# Crawl-delay for respectful crawling
+Crawl-delay: 1
+
+# Specific rules for different bots
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
