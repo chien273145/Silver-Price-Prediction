@@ -91,7 +91,7 @@ h2,
 h3,
 h4 {
     font-family: var(--font-heading);
-    color: var(--danger);
+    color: var(--gold-primary);
     margin-bottom: 0.5rem;
 }
 
@@ -749,8 +749,9 @@ select:focus {
 
 .accuracy-card {
     position: relative;
-    background: linear-gradient(135deg, rgba(45, 10, 10, 0.95) 0%, rgba(30, 5, 5, 0.98) 100%);
-    border: 1px solid rgba(255, 215, 0, 0.3);
+    background: var(--bg-card);
+    background-image: var(--gradient-red-card);
+    border: 1px solid var(--glass-border);
     padding: 1.5rem;
 }
 
@@ -1043,7 +1044,9 @@ select:focus {
 }
 
 .news-card {
-    background: rgba(20, 15, 25, 0.9);
+    background: var(--bg-card);
+    background-image: var(--gradient-red-card);
+    border: 1px solid var(--glass-border);
 }
 
 .news-card .card-header {
@@ -1135,8 +1138,9 @@ select:focus {
 }
 
 .info-card {
-    background: rgba(20, 15, 25, 0.9);
-    border: 1px solid rgba(255, 215, 0, 0.1);
+    background: var(--bg-card);
+    background-image: var(--gradient-red-card);
+    border: 1px solid var(--glass-border);
 }
 
 .info-card .card-header {
