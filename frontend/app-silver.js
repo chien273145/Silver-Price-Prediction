@@ -923,8 +923,8 @@ async function loadNews() {
         const response = await fetch(`${API_BASE}/api/news?asset=silver`);
         const data = await response.json();
 
-        if (data.success && data.news && data.news.length > 0) {
-            displayNews(data.news);
+        if (data.success && data.articles && data.articles.length > 0) {
+            displayNews(data.articles);
         } else {
             elements.newsList.innerHTML = '<div class="news-error">Không thể tải tin tức</div>';
         }

@@ -240,60 +240,16 @@ function updateMarketAnalysisDisplay(data) {
 }
 
 // ========== PERFORMANCE TRANSPARENCY ==========
-// ========== PERFORMANCE TRANSPARENCY ==========
-function updatePerformanceDisplay() {
-    // Use data embedded in predictions response
-    if (!state.predictions || !state.predictions.accuracy_check) return;
+async function fetchPerformanceTransparency() {
+    try {
+        const response = await fetch(`${API_BASE}/api/performance-transparency`);
+        const data = await response.json();
 
-    const accuracy = state.predictions.accuracy_check;
-    const accuracyContent = document.getElementById('accuracyContent');
-    const accuracyBadge = document.getElementById('accuracyBadge');
-
-    if (!accuracyContent) return;
-
-    // accuracy_check returns { date, actual, predicted, diff, diff_pct, accuracy, unit }
-    // We map it to the display format
-
-    const diffClass = accuracy.diff >= 0 ? 'positive' : 'negative';
-    const diffSign = accuracy.diff >= 0 ? '+' : '';
-
-    const performanceHTML = `
-        <div class="performance-grid">
-            <div class="perf-item">
-                <div class="perf-label">📅 Ngày</div>
-                <div class="perf-value">${formatDate(accuracy.date)}</div>
-            </div>
-            <div class="perf-item">
-                <div class="perf-label">🎯 Dự báo (Hôm qua)</div>
-                <div class="perf-value">${formatPrice(accuracy.predicted)} <small>tr</small></div>
-            </div>
-            <div class="perf-item">
-                <div class="perf-label">📊 Thực tế (Hôm nay)</div>
-                <div class="perf-value">${formatPrice(accuracy.actual)} <small>tr</small></div>
-            </div>
-            <div class="perf-item">
-                <div class="perf-label">📈 Chênh lệch</div>
-                <div class="perf-value ${diffClass}">
-                    ${diffSign}${formatPrice(accuracy.diff)} (${accuracy.diff_pct}%)
-                </div>
-            </div>
-            <div class="perf-item highlight">
-                <div class="perf-label">✅ Độ chính xác</div>
-                <div class="perf-value" style="color: #00d97e">
-                    ${accuracy.accuracy}%
-                </div>
-            </div>
-        </div>
-        <div class="performance-comment">
-            <strong>AI đã dự đoán chính xác ${accuracy.accuracy}% giá vàng hôm nay.</strong>
-        </div>
-    `;
-
-    accuracyContent.innerHTML = performanceHTML;
-
-    if (accuracyBadge) {
-        accuracyBadge.textContent = `${accuracy.accuracy}%`;
-        accuracyBadge.style.backgroundColor = accuracy.accuracy >= 95 ? '#00d97e' : (accuracy.accuracy >= 90 ? '#f1c40f' : '#e74c3c');
+        if (data.success && data.performance) {
+            updatePerformanceDisplay(data.performance);
+        }
+    } catch (error) {
+        console.error('Error fetching performance transparency:', error);
     }
 }
 
@@ -693,7 +649,7 @@ async function fetchNews() {
         const data = await response.json();
 
         if (data.success) {
-            updateNewsDisplay(data.news);
+            updateNewsDisplay(data.articles);
         } else {
             console.error('Failed to fetch news:', data.message);
         }
@@ -1017,71 +973,6 @@ function updateLocalPricesTable(data) {
 }
 
 // Market Analysis
-async function fetchMarketAnalysis() {
-    try {
-        const response = await fetch(`${API_BASE}/api/market-analysis?asset=gold`);
-        const data = await response.json();
-
-        if (data.success && data.analysis) {
-            updateMarketAnalysis(data.analysis);
-        } else {
-            const container = document.getElementById('marketAnalysisContent');
-            if (container) container.innerHTML = '<div class="analysis-error">Chưa có dữ liệu phân tích</div>';
-        }
-    } catch (error) {
-        console.error('Error loading market analysis:', error);
-        const container = document.getElementById('marketAnalysisContent');
-        if (container) container.innerHTML = '<div class="analysis-error">Lỗi kết nối</div>';
-    }
-}
-
-function updateMarketAnalysis(analysis) {
-    const container = document.getElementById('marketAnalysisContent');
-    if (!container) return;
-
-    let html = `
-        <div class="analysis-summary">
-            <div class="analysis-header">
-                <span class="analysis-trend ${analysis.trend === 'bullish' ? 'trend-up' : analysis.trend === 'bearish' ? 'trend-down' : 'trend-neutral'}">
-                    ${analysis.trend === 'bullish' ? '📈 Xu hướng Tăng' : analysis.trend === 'bearish' ? '📉 Xu hướng Giảm' : '➡️ Đi Ngang'}
-                </span>
-                <span class="analysis-confidence">Độ tin cậy: ${analysis.confidence}</span>
-            </div>
-            
-            <div class="analysis-rec-box ${analysis.recommendation.includes('MUA') ? 'rec-buy' : analysis.recommendation.includes('BÁN') ? 'rec-sell' : 'rec-hold'}">
-                <strong>KHUYẾN NGHỊ:</strong> ${analysis.recommendation}
-            </div>
-            
-            <p class="analysis-text">${analysis.summary}</p>
-        </div>
-    `;
-
-    // Indicators
-    if (analysis.indicators) {
-        html += '<div class="analysis-indicators">';
-        if (analysis.indicators.vix) {
-            const vix = analysis.indicators.vix;
-            html += `
-                <div class="indicator-item ${vix.impact}">
-                    <span class="ind-label">Chỉ số Sợ hãi (VIX):</span>
-                    <span class="ind-value">${vix.value} (${vix.status})</span>
-                </div>
-            `;
-        }
-        if (analysis.indicators.dxy) {
-            const dxy = analysis.indicators.dxy;
-            html += `
-                <div class="indicator-item ${dxy.impact}">
-                    <span class="ind-label">Chỉ số USD (DXY):</span>
-                    <span class="ind-value">${dxy.value} (${dxy.status})</span>
-                </div>
-            `;
-        }
-        html += '</div>';
-    }
-
-    container.innerHTML = html;
-}
 
 // Load all data
 async function loadData() {
@@ -1217,8 +1108,8 @@ async function loadNews() {
         const response = await fetch(`${API_BASE}/api/news?asset=gold`);
         const data = await response.json();
 
-        if (data.success && data.news && data.news.length > 0) {
-            displayNews(data.news);
+        if (data.success && data.articles && data.articles.length > 0) {
+            displayNews(data.articles);
         } else {
             elements.newsList.innerHTML = '<div class="news-error">Không thể tải tin tức</div>';
         }

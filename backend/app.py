@@ -965,23 +965,25 @@ async def update_daily(x_api_key: str = Header(default="")):
         
         # Read current data to get last date
         if os.path.exists(csv_path):
-            df = pd.read_csv(csv_path)
-            df['Date'] = pd.to_datetime(df['Date'])
-            last_date = df['Date'].max()
+            df = pd.read_csv(csv_path, encoding='utf-8-sig')
+            date_col = 'Ngày' if 'Ngày' in df.columns else 'Date'
+            df[date_col] = pd.to_datetime(df[date_col], dayfirst=True)
+            last_date = df[date_col].max()
             records_before = len(df)
         else:
             last_date = None
             records_before = 0
-        
+
         # Update CSV with latest data
         success = data_fetcher.update_csv_with_latest(csv_path)
-        
+
         # Count new records
         if os.path.exists(csv_path):
-            df_after = pd.read_csv(csv_path)
+            df_after = pd.read_csv(csv_path, encoding='utf-8-sig')
             records_after = len(df_after)
-            df_after['Date'] = pd.to_datetime(df_after['Date'])
-            new_last_date = df_after['Date'].max()
+            date_col = 'Ngày' if 'Ngày' in df_after.columns else 'Date'
+            df_after[date_col] = pd.to_datetime(df_after[date_col], dayfirst=True)
+            new_last_date = df_after[date_col].max()
         else:
             records_after = 0
             new_last_date = None
@@ -1027,7 +1029,7 @@ async def update_external_data(x_api_key: str = Header(default="")):
         
         # Import fetch function
         sys.path.insert(0, base_dir)
-        from fetch_external_data import fetch_external_data, merge_with_silver_data, save_enhanced_dataset
+        from src.fetch_external_data import fetch_external_data, merge_with_silver_data, save_enhanced_dataset
         
         # Paths
         silver_csv = os.path.join(base_dir, 'dataset', 'dataset_silver.csv')
@@ -1105,17 +1107,27 @@ async def get_data_status():
                 "message": "Dataset not found"
             }
         
-        df = pd.read_csv(csv_path)
-        df['Date'] = pd.to_datetime(df['Date'])
-        
-        last_date = df['Date'].max()
-        first_date = df['Date'].min()
-        
+        df = pd.read_csv(csv_path, encoding='utf-8-sig')
+
+        # Handle Vietnamese column names
+        date_col = 'Ngày' if 'Ngày' in df.columns else 'Date'
+        close_col = 'Lần cuối' if 'Lần cuối' in df.columns else 'Close'
+
+        df[date_col] = pd.to_datetime(df[date_col], dayfirst=True)
+
+        last_date = df[date_col].max()
+        first_date = df[date_col].min()
+
         # Check if data is current (within last 2 days for weekends)
         from datetime import timedelta
         days_old = (datetime.now() - last_date.to_pydatetime()).days
         is_current = days_old <= 2
-        
+
+        # Get last price (clean string format if needed)
+        last_price = df.iloc[-1][close_col]
+        if isinstance(last_price, str):
+            last_price = float(last_price.replace(',', '.'))
+
         return {
             "success": True,
             "total_records": len(df),
@@ -1123,10 +1135,56 @@ async def get_data_status():
             "last_date": last_date.strftime("%Y-%m-%d"),
             "days_old": days_old,
             "is_current": is_current,
-            "last_price_usd": float(df.iloc[-1]['Close']),
+            "last_price_usd": float(last_price),
             "checked_at": datetime.now().isoformat()
         }
         
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/gold/data-status")
+async def get_gold_data_status():
+    """Lấy trạng thái dữ liệu vàng."""
+    try:
+        import pandas as pd
+
+        csv_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            'dataset', 'dataset_gold.csv'
+        )
+
+        if not os.path.exists(csv_path):
+            return {"success": False, "message": "Gold dataset not found"}
+
+        df = pd.read_csv(csv_path, encoding='utf-8-sig')
+        date_col = 'Ngày' if 'Ngày' in df.columns else 'Date'
+        close_col = 'Lần cuối' if 'Lần cuối' in df.columns else 'Close'
+
+        df[date_col] = pd.to_datetime(df[date_col], dayfirst=True)
+
+        last_date = df[date_col].max()
+        first_date = df[date_col].min()
+
+        from datetime import timedelta
+        days_old = (datetime.now() - last_date.to_pydatetime()).days
+        is_current = days_old <= 2
+
+        last_price = df.iloc[-1][close_col]
+        if isinstance(last_price, str):
+            last_price = float(last_price.replace(',', ''))
+
+        return {
+            "success": True,
+            "total_records": len(df),
+            "first_date": first_date.strftime("%Y-%m-%d"),
+            "last_date": last_date.strftime("%Y-%m-%d"),
+            "days_old": days_old,
+            "is_current": is_current,
+            "last_price_usd": float(last_price),
+            "checked_at": datetime.now().isoformat()
+        }
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

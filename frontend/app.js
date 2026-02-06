@@ -158,7 +158,69 @@ async function fetchFearGreedIndex() {
 }
 
 // ========== PERFORMANCE TRANSPARENCY ==========
-// ========== PERFORMANCE TRANSPARENCY ==========
+async function fetchPerformanceTransparency() {
+    try {
+        const response = await fetch(`${API_BASE}/api/performance-transparency`);
+        const data = await response.json();
+
+        if (data.success && data.performance) {
+            const p = data.performance;
+            const accuracyContent = document.getElementById('accuracyContent');
+            const accuracyBadge = document.getElementById('accuracyBadge');
+            if (!accuracyContent) return;
+
+            const performanceHTML = `
+                <div class="performance-grid">
+                    <div class="perf-item">
+                        <div class="perf-label">📅 Date</div>
+                        <div class="perf-value">${p.date}</div>
+                    </div>
+                    <div class="perf-item">
+                        <div class="perf-label">🎯 Forecast</div>
+                        <div class="perf-value">${state.currency === 'VND' ?
+                            new Intl.NumberFormat('vi-VN').format(p.forecast.vnd) + ' VND' :
+                            '$' + p.forecast.usd}</div>
+                    </div>
+                    <div class="perf-item">
+                        <div class="perf-label">📊 Actual</div>
+                        <div class="perf-value">${state.currency === 'VND' ?
+                            new Intl.NumberFormat('vi-VN').format(p.actual.vnd) + ' VND' :
+                            '$' + p.actual.usd}</div>
+                    </div>
+                    <div class="perf-item">
+                        <div class="perf-label">📈 Difference</div>
+                        <div class="perf-value ${p.difference.percentage > 0 ? 'positive' : 'negative'}">
+                            ${p.difference.percentage > 0 ? '+' : ''}${p.difference.percentage}%
+                        </div>
+                    </div>
+                    <div class="perf-item highlight">
+                        <div class="perf-label">✅ Accuracy</div>
+                        <div class="perf-value" style="color: ${p.accuracy.grade_color}">
+                            ${p.accuracy.overall}% (${p.accuracy.grade})
+                        </div>
+                    </div>
+                    <div class="perf-item">
+                        <div class="perf-label">💪 Confidence</div>
+                        <div class="perf-value">${p.model_confidence}</div>
+                    </div>
+                </div>
+                <div class="performance-comment">
+                    <strong>${p.accuracy.comment}</strong>
+                    ${p.accuracy.direction_correct !== null ?
+                        `| Direction: ${p.accuracy.direction_correct ? '✅ Correct' : '❌ Wrong'}` : ''}
+                </div>
+            `;
+            accuracyContent.innerHTML = performanceHTML;
+            if (accuracyBadge) {
+                accuracyBadge.textContent = `${p.accuracy.overall}%`;
+                accuracyBadge.style.backgroundColor = p.accuracy.grade_color;
+            }
+        }
+    } catch (error) {
+        console.error('Error fetching performance transparency:', error);
+    }
+}
+
 function updatePerformanceDisplay() {
     // Use data embedded in predictions response
     if (!state.predictions || !state.predictions.accuracy_check) return;
@@ -1004,19 +1066,7 @@ async function loadData() {
             updateDataStatus(dataStatus);
         }
 
-        // NEW UPDATES
-        if (predictions && predictions.market_drivers) {
-            updateMarketFactors(predictions.market_drivers);
-            updateSentiment(predictions.summary, predictions.market_drivers);
-        } else if (predictions && predictions.summary) {
-            updateSentiment(predictions.summary, null);
-        }
-
-        if (predictions && predictions.accuracy_check) {
-            updateAccuracy(predictions.accuracy_check);
-        }
-
-        // NEW UPDATES
+        // Update market factors, sentiment and accuracy from predictions
         if (predictions && predictions.market_drivers) {
             updateMarketFactors(predictions.market_drivers);
             updateSentiment(predictions.summary, predictions.market_drivers);
@@ -1135,8 +1185,8 @@ async function loadNews() {
         const response = await fetch(`${API_BASE}/api/news`);
         const data = await response.json();
 
-        if (data.success && data.news && data.news.length > 0) {
-            displayNews(data.news);
+        if (data.success && data.articles && data.articles.length > 0) {
+            displayNews(data.articles);
         } else {
             elements.newsList.innerHTML = '<div class="news-error">Không thể tải tin tức</div>';
         }
@@ -1456,7 +1506,7 @@ async function fetchNews() {
         const data = await response.json();
 
         if (data.success) {
-            updateNewsDisplay(data.news);
+            updateNewsDisplay(data.articles);
         } else {
             console.error('Failed to fetch news:', data.message);
         }
@@ -1504,52 +1554,6 @@ function showCalculator() {
         if (elements.calcAsset) elements.calcAsset.value = state.asset;
         updateCalc();
     }
-}
-
-// ===== NEWS SENTIMENT =====
-async function fetchNews() {
-    try {
-        const response = await fetch(`${API_BASE}/api/news?asset=${state.asset}`);
-        const data = await response.json();
-
-        if (data.success) {
-            updateNewsDisplay(data.news);
-        } else {
-            console.error('Failed to fetch news:', data.message);
-        }
-    } catch (error) {
-        console.error('Error fetching news:', error);
-    }
-}
-
-function updateNewsDisplay(newsData) {
-    if (!elements.newsList) return;
-
-    if (!newsData || newsData.length === 0) {
-        elements.newsList.innerHTML = '<div class="news-loading">Chưa có tin tức mới.</div>';
-        return;
-    }
-
-    const html = newsData.map(item => {
-        const sentimentClass = item.sentiment_label === 'Positive' ? 'positive' :
-            (item.sentiment_label === 'Negative' ? 'negative' : 'neutral');
-        const sentimentBadge = item.sentiment_label === 'Positive' ? '📈 Tích cực' :
-            (item.sentiment_label === 'Negative' ? '📉 Tiêu cực' : '⚖️ Trung lập');
-
-        return `
-            <div class="news-item">
-                <div class="news-meta">
-                    <span class="news-source">${item.source}</span>
-                    <span class="news-time">${item.date ? new Date(item.date).toLocaleDateString('vi-VN') : ''}</span>
-                    <span class="sentiment-badge ${sentimentClass}">${sentimentBadge} (${item.sentiment_score})</span>
-                </div>
-                <h4 class="news-title"><a href="${item.link}" target="_blank">${item.title}</a></h4>
-                <p class="news-summary">${item.summary ? item.summary.substring(0, 100) + '...' : ''}</p>
-            </div>
-        `;
-    }).join('');
-
-    elements.newsList.innerHTML = html;
 }
 
 function updateCalcAsset() {
