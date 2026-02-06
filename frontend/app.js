@@ -8,7 +8,7 @@ const API_BASE = window.location.origin;
 
 // State
 const state = {
-    asset: 'silver',  // 'silver' or 'gold'
+    asset: document.body.dataset.asset || 'silver',  // 'silver' or 'gold'
     currency: 'VND',
     historicalDays: 90,
     predictions: null,
@@ -1046,25 +1046,7 @@ function setupEventListeners() {
         });
     });
 
-    // Asset buttons (Silver/Gold)
-    document.querySelectorAll('.asset-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('.asset-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
 
-            // Set new state
-            state.asset = btn.dataset.asset;
-
-            // Update UI
-            updateUIForAsset();
-
-            // Reload data
-            loadData();
-            if (typeof fetchLocalPrices === 'function') {
-                fetchLocalPrices();
-            }
-        });
-    });
 
     // Currency buttons
     document.querySelectorAll('.toggle-btn').forEach(btn => {
