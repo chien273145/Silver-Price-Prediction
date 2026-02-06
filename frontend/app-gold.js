@@ -690,7 +690,11 @@ function updateChart() {
     const ctx = document.getElementById('priceChart').getContext('2d');
 
     // VN Gold historical data uses mid_price
-    const historicalData = state.historical.data.map(item => ({
+    // Filter data based on state.historicalDays
+    const allData = state.historical.data;
+    const filteredData = allData.slice(-state.historicalDays);
+
+    const historicalData = filteredData.map(item => ({
         x: new Date(item.date),
         y: item.mid_price || item.price
     }));
