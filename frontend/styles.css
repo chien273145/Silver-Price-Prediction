@@ -1342,8 +1342,9 @@ select:focus {
 }
 
 .buy-score-card {
-    background: rgba(20, 15, 25, 0.95);
-    border: 1px solid rgba(255, 215, 0, 0.2);
+    background: var(--bg-card);
+    background-image: var(--gradient-red-card);
+    border: 1px solid var(--glass-border);
 }
 
 .buy-score-card .card-header {
@@ -1541,8 +1542,9 @@ select:focus {
    =================================== */
 .time-machine-widget {
     margin-top: 1.5rem;
-    background: rgba(30, 41, 59, 0.7);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--bg-card);
+    background-image: var(--gradient-red-card);
+    border: 1px solid var(--glass-border);
     border-radius: 12px;
     backdrop-filter: blur(10px);
     padding: 1rem 1.5rem;
@@ -1665,8 +1667,9 @@ select:focus {
 
 .savings-comparison-widget,
 .allocation-chart-widget {
-    background: rgba(30, 41, 59, 0.7);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--bg-card);
+    background-image: var(--gradient-red-card);
+    border: 1px solid var(--glass-border);
     border-radius: 12px;
     backdrop-filter: blur(10px);
     padding: 1rem;
