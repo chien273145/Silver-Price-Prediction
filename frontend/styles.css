@@ -294,6 +294,7 @@ button {
 }
 
 .sentiment-text {
+    display: none;  /* Hidden - gauge chart already shows sentiment visually */
     position: absolute;
     bottom: 5%;
     /* Lower down */
