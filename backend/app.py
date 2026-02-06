@@ -209,6 +209,7 @@ class PredictionResponse(BaseModel):
     summary: dict
     market_drivers: Optional[dict] = None
     accuracy_check: Optional[dict] = None
+    confidence_interval: Optional[dict] = None
 
 
 class HistoricalResponse(BaseModel):

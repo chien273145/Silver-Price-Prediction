@@ -665,6 +665,16 @@ function updatePriceCards() {
     const lastPrediction = predictions[predictions.length - 1];
     elements.predictedPrice.textContent = formatPrice(lastPrediction.price);
 
+    // Update range (New)
+    const rangeEl = document.getElementById('predictedRange');
+    if (rangeEl && lastPrediction.lower && lastPrediction.upper) {
+        const low = formatPrice(lastPrediction.lower);
+        const high = formatPrice(lastPrediction.upper);
+        rangeEl.textContent = `Vùng an toàn: ${low} - ${high}`;
+    } else if (rangeEl) {
+        rangeEl.textContent = '';
+    }
+
     // Prediction change
     const predChangeValue = elements.predictionChange.querySelector('.change-value');
     const predChangePercent = elements.predictionChange.querySelector('.change-percent');
@@ -759,6 +769,23 @@ function updateChart() {
         }))
     ];
 
+    // Prepare confidence data (New)
+    const confidenceLower = [
+        { x: lastDate, y: lastPrice },
+        ...state.predictions.predictions.map(item => ({
+            x: new Date(item.date),
+            y: item.lower !== undefined ? item.lower : item.price
+        }))
+    ];
+
+    const confidenceUpper = [
+        { x: lastDate, y: lastPrice },
+        ...state.predictions.predictions.map(item => ({
+            x: new Date(item.date),
+            y: item.upper !== undefined ? item.upper : item.price
+        }))
+    ];
+
     // Destroy existing chart
     if (state.chart) {
         state.chart.destroy();
@@ -779,19 +806,38 @@ function updateChart() {
                     pointRadius: 0,
                     pointHoverRadius: 6,
                     pointHoverBackgroundColor: '#c0c0c0',
-                    borderWidth: 2
+                    borderWidth: 2,
+                    order: 3
+                },
+                {
+                    label: 'Vùng tin cậy (Thấp)',
+                    data: confidenceLower,
+                    borderColor: 'transparent',
+                    pointRadius: 0,
+                    fill: false,
+                    order: 2
+                },
+                {
+                    label: 'Vùng tin cậy (Cao)',
+                    data: confidenceUpper,
+                    borderColor: 'transparent',
+                    backgroundColor: 'rgba(59, 130, 246, 0.15)', // Light blue cloud
+                    pointRadius: 0,
+                    fill: '-1', // Fill to previous dataset (Lower)
+                    order: 1
                 },
                 {
                     label: 'Dự đoán',
                     data: predictionData,
                     borderColor: 'rgba(59, 130, 246, 1)',
                     backgroundColor: 'rgba(59, 130, 246, 0.2)',
-                    fill: true,
+                    fill: false,
                     tension: 0.4,
                     pointRadius: 4,
                     pointBackgroundColor: 'rgba(59, 130, 246, 1)',
                     borderWidth: 3,
-                    borderDash: [5, 5]
+                    borderDash: [5, 5],
+                    order: 0 // Top most
                 }
             ]
         },

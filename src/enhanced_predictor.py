@@ -44,6 +44,7 @@ class EnhancedPredictor:
         self.pca = None  # PCA for dimensionality reduction
         self.target_scaler = None
         self.feature_columns = None
+        self.latest_metrics = None  # Store metrics for confidence intervals
         
         self.usd_vnd_rate = DEFAULT_USD_VND_RATE
         self.troy_ounce_to_luong = 1.20565
@@ -381,7 +382,7 @@ class EnhancedPredictor:
         print(f"  MAE: ${mae:.2f}")
         print(f"  MAPE: {mape:.2f}%")
         
-        return {
+        self.latest_metrics = {
             'avg_r2': avg_r2,
             'rmse': rmse,
             'mae': mae,
@@ -389,6 +390,8 @@ class EnhancedPredictor:
             'train_r2': train_metrics,
             'test_r2': test_metrics
         }
+        
+        return self.latest_metrics
     
     def save_model(self):
         """Save trained model."""
@@ -399,7 +402,9 @@ class EnhancedPredictor:
             'scaler': self.scaler,
             'pca': self.pca,
             'target_scaler': self.target_scaler,
-            'feature_columns': self.feature_columns
+            'target_scaler': self.target_scaler,
+            'feature_columns': self.feature_columns,
+            'latest_metrics': self.latest_metrics
         }
         
         joblib.dump(data, model_path)
@@ -418,7 +423,14 @@ class EnhancedPredictor:
         self.scaler = data['scaler']
         self.pca = data.get('pca', None)
         self.target_scaler = data['target_scaler']
+        self.target_scaler = data['target_scaler']
         self.feature_columns = data['feature_columns']
+        self.latest_metrics = data.get('latest_metrics', None)
+        
+        # Fallback if metrics missing (legacy models)
+        if self.latest_metrics is None:
+            print("[WARNING] No metrics found in model, using default RMSE")
+            self.latest_metrics = {'rmse': 0.5} # Default approx RMSE for Silver
         
         n_components = self.pca.n_components_ if self.pca else len(self.feature_columns)
         print(f"[OK] Loaded enhanced model ({len(self.models)} models, {n_components} components)")
@@ -476,6 +488,32 @@ class EnhancedPredictor:
             })
             prev_price = pred
         
+
+        # Calculate confidence margin
+        rmse = self.latest_metrics['rmse'] if self.latest_metrics else 0.5
+        margin_usd = 1.96 * rmse
+        
+        result_predictions = []
+        for i, (date, pred) in enumerate(zip(future_dates, predictions)):
+            # Calculate bounds
+            if in_vnd:
+                margin_vnd = self._convert_to_vnd_single(margin_usd)
+                lower = pred - margin_vnd
+                upper = pred + margin_vnd
+            else:
+                lower = pred - margin_usd
+                upper = pred + margin_usd
+                
+            result_predictions.append({
+                'date': date.strftime('%Y-%m-%d'),
+                'day': i + 1,
+                'price': float(pred),
+                'price_usd': float(predictions_usd[i]),
+                'lower': float(lower),
+                'upper': float(upper),
+                'change': changes[i]
+            })
+
         result = {
             'timestamp': datetime.now().isoformat(),
             'model_type': 'ridge_enhanced_pca',
@@ -488,16 +526,12 @@ class EnhancedPredictor:
                 'price': float(last_price),
                 'price_usd': float(last_price_usd)
             },
-            'predictions': [
-                {
-                    'date': date.strftime('%Y-%m-%d'),
-                    'day': i + 1,
-                    'price': float(pred),
-                    'price_usd': float(predictions_usd[i]),
-                    'change': changes[i]
-                }
-                for i, (date, pred) in enumerate(zip(future_dates, predictions))
-            ],
+            'predictions': result_predictions,
+            'confidence_interval': {
+                'level': '95%',
+                'margin_usd': float(1.96 * (self.latest_metrics['rmse'] if self.latest_metrics else 0.5)),
+                'margin_vnd': float(1.96 * (self.latest_metrics['rmse'] if self.latest_metrics else 0.5) * self.troy_ounce_to_luong * self.usd_vnd_rate * self.vietnam_premium) if in_vnd else None
+            },
             'summary': {
                 'min_price': float(min(predictions)),
                 'max_price': float(max(predictions)),
