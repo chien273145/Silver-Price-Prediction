@@ -924,8 +924,9 @@ select:focus {
 }
 
 .faq-card {
-    background: rgba(20, 15, 25, 0.9);
-    border: 1px solid rgba(255, 215, 0, 0.1);
+    background: var(--bg-card);
+    background-image: var(--gradient-red-card);
+    border: 1px solid var(--glass-border);
 }
 
 .center-header {
@@ -974,27 +975,7 @@ select:focus {
     margin: 1.5rem 0;
 }
 
-.accuracy-card {
-    position: relative;
-    background: rgba(20, 15, 25, 0.9);
-}
-
-.accuracy-card .card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 1rem 1.5rem;
-}
-
-.accuracy-badge {
-    background: rgba(0, 217, 126, 0.15);
-    color: var(--success);
-    padding: 0.5rem 1rem;
-    border-radius: 20px;
-    font-size: 1rem;
-    font-weight: 700;
-    border: 1px solid var(--success);
-}
+/* Duplicate .accuracy-card styling removed - already defined above at line 751 with correct gradient background */
 
 .accuracy-content {
     display: flex;
@@ -1287,8 +1268,9 @@ select:focus {
 }
 
 .subscribe-card {
-    background: rgba(20, 15, 25, 0.95);
-    border: 1px solid rgba(255, 215, 0, 0.15);
+    background: var(--bg-card);
+    background-image: var(--gradient-red-card);
+    border: 1px solid var(--glass-border);
 }
 
 .subscribe-content {
