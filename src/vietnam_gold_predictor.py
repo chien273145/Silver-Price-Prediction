@@ -139,21 +139,25 @@ class VietnamGoldPredictor:
     def merge_datasets(self):
         """Merge Vietnam and World gold data by date."""
         print("Merging Vietnam and World gold datasets...")
-        
+
         if self.vn_data is None:
             self.load_vietnam_data()
         if self.world_data is None:
             self.load_world_data()
-        
-        # Merge on date
+
+        # Use left join to keep all Vietnam dates, then forward-fill missing world data
         self.merged_data = pd.merge(
             self.vn_data,
             self.world_data,
             on='date',
-            how='inner',
+            how='left',  # Keep all Vietnam dates
             suffixes=('_vn', '_world')
         )
-        
+
+        # Forward-fill missing world gold data (for weekends/holidays)
+        world_cols = [col for col in self.merged_data.columns if col.startswith('gold_')]
+        self.merged_data[world_cols] = self.merged_data[world_cols].ffill()
+
         print(f"  Merged dataset: {len(self.merged_data)} records")
         return self.merged_data
     
@@ -420,18 +424,18 @@ class VietnamGoldPredictor:
             
             # Predict
             predictions = []
+            current_date = last_date
             for day in range(1, self.prediction_days + 1):
+                # Move to next business day
+                current_date += timedelta(days=1)
+                while current_date.weekday() in [5, 6]:
+                    current_date += timedelta(days=1)
+
                 pred_price = self.transfer_models[day].predict(latest_scaled)[0]
-                pred_date = last_date + timedelta(days=day)
-                
-                # Skip weekends
-                while pred_date.weekday() in [5, 6]:
-                    pred_date += timedelta(days=1)
-                
                 change = ((pred_price - last_price) / last_price) * 100
-                
+
                 predictions.append({
-                    'date': pred_date.strftime('%Y-%m-%d'),
+                    'date': current_date.strftime('%Y-%m-%d'),
                     'day': day,
                     'predicted_price': round(pred_price, 2),
                     'change_percent': round(change, 2),
@@ -465,18 +469,18 @@ class VietnamGoldPredictor:
         
         # Predict for each day
         predictions = []
+        current_date = last_date
         for day in range(1, self.prediction_days + 1):
+            # Move to next business day
+            current_date += timedelta(days=1)
+            while current_date.weekday() in [5, 6]:
+                current_date += timedelta(days=1)
+
             pred_price = self.transfer_models[day].predict(latest_scaled)[0]
-            pred_date = last_date + timedelta(days=day)
-            
-            # Skip weekends
-            while pred_date.weekday() in [5, 6]:
-                pred_date += timedelta(days=1)
-            
             change = ((pred_price - last_price) / last_price) * 100
-            
+
             predictions.append({
-                'date': pred_date.strftime('%Y-%m-%d'),
+                'date': current_date.strftime('%Y-%m-%d'),
                 'day': day,
                 'predicted_price': round(pred_price, 2),
                 'change_percent': round(change, 2),
