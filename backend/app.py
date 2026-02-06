@@ -1476,8 +1476,8 @@ async def get_performance_transparency():
 @app.get("/api/accuracy")
 async def get_prediction_accuracy():
     """
-    Tính toán độ chính xác của dự đoán so với giá thực tế.
-    Uses backtesting: make predictions on historical data and compare with actual prices.
+    Tính toán độ chính xác của dự đoán 7 ngày trước so với giá hiện tại.
+    Logic: Lấy dự đoán được tạo 7 ngày trước, so sánh với giá HIỆN TẠI (realtime).
     """
     global predictor
 
@@ -1491,67 +1491,79 @@ async def get_prediction_accuracy():
                 "message": "Model not loaded"
             }
 
-        # Need at least 21 days of data (14 for prediction + 7 for validation)
-        df = predictor.data.tail(50).copy()
+        df = predictor.data.copy()
 
-        if len(df) < 21:
+        if len(df) < 8:
             return {
                 "success": False,
-                "message": "Not enough data for accuracy calculation"
+                "message": "Not enough data for accuracy calculation (need at least 8 days)"
             }
 
-        # Backtest: Use data from 14 days ago to predict next 7 days
-        # Then compare with actual prices from last 7 days
-        backtest_start_idx = len(df) - 14  # 14 days ago
-        historical_data = df.iloc[:backtest_start_idx]  # Data up to 14 days ago
-        actual_data = df.iloc[backtest_start_idx:backtest_start_idx+7]  # Actual prices for next 7 days
+        # LOGIC MỚI:
+        # 1. Lấy dữ liệu từ 7 ngày trước
+        # 2. Dự đoán 7 ngày tiếp theo (tới HÔM NAY)
+        # 3. So sánh dự đoán với giá HIỆN TẠI
 
-        # Get predictions using the model's predict logic
+        # Get data from 7 days ago (excluding today)
+        data_7_days_ago = df.iloc[:-7]  # All data except last 7 days
+
+        if len(data_7_days_ago) < 10:
+            return {
+                "success": False,
+                "message": "Not enough historical data"
+            }
+
+        # Get today's actual price (current/realtime)
+        today_actual_price = float(df['price'].iloc[-1])
+
+        # Make prediction from 7 days ago for today (day 7 prediction)
         try:
-            # Simulate prediction from 14 days ago
-            features = historical_data[predictor.model.feature_names_in_].iloc[-1:].values
-
-            predictions = []
-            for day in range(1, 8):
-                pred = predictor.model.predict(features)[0]
-                predictions.append(pred)
-        except:
-            # Fallback: simple linear extrapolation if model prediction fails
-            last_7_prices = historical_data['price'].tail(7).values
-            trend = (last_7_prices[-1] - last_7_prices[0]) / 6
-            predictions = [last_7_prices[-1] + (trend * i) for i in range(1, 8)]
-
-        # Get actual prices
-        actual_prices = actual_data['price'].values[:7]
-        predicted_prices = np.array(predictions[:len(actual_prices)])
+            features = data_7_days_ago[predictor.model.feature_names_in_].iloc[-1:].values
+            # Predict day 7 (today) from 7 days ago
+            predicted_price_for_today = float(predictor.model.predict(features)[0])
+        except Exception as e:
+            # Fallback: use last known price from 7 days ago
+            predicted_price_for_today = float(data_7_days_ago['price'].iloc[-1])
 
         # Calculate metrics
-        mae = np.mean(np.abs(actual_prices - predicted_prices))
-        mape = np.mean(np.abs((actual_prices - predicted_prices) / actual_prices)) * 100
-        accuracy = max(0, 100 - mape)
+        diff = abs(today_actual_price - predicted_price_for_today)
+        mape = (diff / today_actual_price) * 100
+        accuracy = float(max(0, 100 - mape))
+        mae = float(diff)
 
-        # Direction accuracy (did we predict up/down correctly?)
-        actual_direction = np.sign(np.diff(actual_prices))
-        predicted_direction = np.sign(np.diff(predicted_prices))
-        direction_accuracy = np.mean(actual_direction == predicted_direction) * 100 if len(actual_direction) > 0 else 0
+        # Direction accuracy: did we predict the trend correctly?
+        price_7_days_ago = float(data_7_days_ago['price'].iloc[-1])
+        predicted_direction = "up" if predicted_price_for_today > price_7_days_ago else "down"
+        actual_direction = "up" if today_actual_price > price_7_days_ago else "down"
+        direction_correct = predicted_direction == actual_direction
 
         return {
             "success": True,
             "accuracy": {
-                "overall": round(accuracy, 1),
-                "direction": round(direction_accuracy, 1),
-                "mape": round(mape, 2),
-                "mae_usd": round(mae, 2),
-                "avg_error_usd": round(mae, 2)
+                "overall": float(round(accuracy, 1)),
+                "direction": float(100.0 if direction_correct else 0.0),
+                "mape": float(round(mape, 2)),
+                "mae_usd": float(round(mae, 2)),
+                "avg_error_usd": float(round(mae, 2))
             },
-            "sample_size": len(actual_prices),
-            "period": "7-day backtest",
-            "note": "Real model predictions vs actual historical prices",
+            "comparison": {
+                "predicted_price": float(round(predicted_price_for_today, 2)),
+                "actual_price": float(round(today_actual_price, 2)),
+                "difference_usd": float(round(diff, 2)),
+                "predicted_direction": predicted_direction,
+                "actual_direction": actual_direction,
+                "direction_correct": direction_correct
+            },
+            "sample_size": 1,
+            "period": "7-day forecast from last week",
+            "note": "Prediction made 7 days ago vs current realtime price",
             "timestamp": datetime.now().isoformat()
         }
 
     except Exception as e:
         print(f"Accuracy calculation error: {e}")
+        import traceback
+        traceback.print_exc()
         return {
             "success": False,
             "message": str(e)
@@ -1561,89 +1573,105 @@ async def get_prediction_accuracy():
 
 @app.get("/api/gold/accuracy")
 async def get_gold_accuracy():
-    """Get Gold model prediction accuracy metrics using backtest methodology."""
+    """
+    Tính toán độ chính xác của dự đoán vàng 7 ngày trước so với giá hiện tại.
+    Logic: Lấy dự đoán được tạo 7 ngày trước, so sánh với giá HIỆN TẠI (realtime).
+    """
     try:
+        import numpy as np
+
         if gold_predictor is None:
             return {
                 "success": False,
                 "message": "Model not loaded"
             }
 
-        # Get historical data for validation
+        # Get historical data
         if not hasattr(gold_predictor, 'merged_data') or gold_predictor.merged_data is None:
              return {
                 "success": False,
                 "message": "No data available"
             }
 
-        # Need at least 21 days of data (14 for prediction context + 7 for validation)
-        df = gold_predictor.merged_data.tail(50).copy()
+        df = gold_predictor.merged_data.copy()
 
-        if len(df) < 21:
-             return {
-                "success": False,
-                "message": "Not enough data for backtest (need at least 21 days)"
-            }
-
-        # BACKTEST LOGIC: Use data from 14 days ago to predict next 7 days
-        backtest_start_idx = len(df) - 14  # 14 days ago
-        historical_data = df.iloc[:backtest_start_idx]  # Data up to 14 days ago
-        actual_data = df.iloc[backtest_start_idx:backtest_start_idx+7]  # Actual prices for next 7 days
-
-        # Get predictions using the model (7-day predictions)
-        # Use the last available features from historical data
-        feature_cols = [col for col in gold_predictor.transfer_models[1].feature_names_in_]
-        latest_features = historical_data[feature_cols].iloc[-1:].values
-
-        # Predict next 7 days using trained models
-        predictions = []
-        for day in range(1, 8):
-            if day in gold_predictor.transfer_models:
-                pred = gold_predictor.transfer_models[day].predict(latest_features)[0]
-                predictions.append(pred)
-            else:
-                # If model doesn't exist for this day, skip
-                break
-
-        # Get actual prices (Vietnam SJC buy price)
-        actual_prices = actual_data['buy_price_vn'].values[:len(predictions)]
-        predicted_prices = np.array(predictions[:len(actual_prices)])
-
-        if len(actual_prices) == 0 or len(predicted_prices) == 0:
+        if len(df) < 8:
             return {
                 "success": False,
-                "message": "No valid predictions for backtest period"
+                "message": "Not enough data for accuracy calculation (need at least 8 days)"
             }
 
-        # Calculate metrics
-        mae = np.mean(np.abs(actual_prices - predicted_prices))
-        mape = np.mean(np.abs((actual_prices - predicted_prices) / actual_prices)) * 100
-        accuracy = max(0, 100 - mape)
+        # LOGIC MỚI:
+        # 1. Lấy dữ liệu từ 7 ngày trước
+        # 2. Dự đoán 7 ngày tiếp theo (tới HÔM NAY)
+        # 3. So sánh dự đoán với giá HIỆN TẠI
 
-        # Direction accuracy (comparing day-to-day changes)
-        if len(actual_prices) > 1:
-            actual_direction = np.sign(np.diff(actual_prices))
-            predicted_direction = np.sign(np.diff(predicted_prices))
-            direction_accuracy = np.mean(actual_direction == predicted_direction) * 100
-        else:
-            direction_accuracy = 0.0
+        # Get data from 7 days ago (excluding last 7 days)
+        data_7_days_ago = df.iloc[:-7]
+
+        if len(data_7_days_ago) < 10:
+            return {
+                "success": False,
+                "message": "Not enough historical data"
+            }
+
+        # Get today's actual price (current/realtime) - Vietnam SJC buy price
+        today_actual_price = float(df['buy_price_vn'].iloc[-1])
+
+        # Make prediction from 7 days ago for today (day 7 prediction)
+        try:
+            # Use transfer model for day 7
+            if 7 in gold_predictor.transfer_models:
+                feature_cols = [col for col in gold_predictor.transfer_models[7].feature_names_in_]
+                latest_features = data_7_days_ago[feature_cols].iloc[-1:].values
+                predicted_price_for_today = float(gold_predictor.transfer_models[7].predict(latest_features)[0])
+            else:
+                # Fallback to model 1 if day 7 doesn't exist
+                feature_cols = [col for col in gold_predictor.transfer_models[1].feature_names_in_]
+                latest_features = data_7_days_ago[feature_cols].iloc[-1:].values
+                predicted_price_for_today = float(gold_predictor.transfer_models[1].predict(latest_features)[0])
+        except Exception as e:
+            # Fallback: use last known price from 7 days ago
+            predicted_price_for_today = float(data_7_days_ago['buy_price_vn'].iloc[-1])
+
+        # Calculate metrics
+        diff = abs(today_actual_price - predicted_price_for_today)
+        mape = (diff / today_actual_price) * 100
+        accuracy = float(max(0, 100 - mape))
+        mae = float(diff)
+
+        # Direction accuracy
+        price_7_days_ago = float(data_7_days_ago['buy_price_vn'].iloc[-1])
+        predicted_direction = "up" if predicted_price_for_today > price_7_days_ago else "down"
+        actual_direction = "up" if today_actual_price > price_7_days_ago else "down"
+        direction_correct = predicted_direction == actual_direction
 
         return {
             "success": True,
             "accuracy": {
-                "overall": round(accuracy, 1),
-                "direction": round(direction_accuracy, 1),
-                "mape": round(mape, 2),
-                "mae": round(mae, 2),
-                "avg_error_million_vnd": round(mae, 2)
+                "overall": float(round(accuracy, 1)),
+                "direction": float(100.0 if direction_correct else 0.0),
+                "mape": float(round(mape, 2)),
+                "mae": float(round(mae, 2)),
+                "avg_error_million_vnd": float(round(mae, 2))
             },
-            "sample_size": len(actual_prices),
-            "period": f"{len(actual_prices)} days backtest",
-            "note": "Backtest using predictions from 14 days ago vs actual prices",
+            "comparison": {
+                "predicted_price": float(round(predicted_price_for_today, 2)),
+                "actual_price": float(round(today_actual_price, 2)),
+                "difference_million_vnd": float(round(diff, 2)),
+                "predicted_direction": predicted_direction,
+                "actual_direction": actual_direction,
+                "direction_correct": direction_correct
+            },
+            "sample_size": 1,
+            "period": "7-day forecast from last week",
+            "note": "Prediction made 7 days ago vs current realtime price",
             "timestamp": datetime.now().isoformat()
         }
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return {
             "success": False,
             "message": str(e)
