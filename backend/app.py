@@ -11,11 +11,14 @@ from datetime import datetime
 from typing import Optional
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+
+# Secret key for protected endpoints (set via environment variable)
+UPDATE_SECRET = os.getenv("UPDATE_SECRET", "")
 
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -27,6 +30,7 @@ from backend.realtime_data import RealTimeDataFetcher
 from src.scrapers.service import get_price_service
 from src.buy_score import calculate_buy_score
 from src.time_machine import predict_portfolio_future
+from src.news_sentiment import NewsFetcher, SentimentAnalyzer
 
 
 # Global instances
@@ -34,6 +38,8 @@ predictor: Optional[EnhancedPredictor] = None
 gold_predictor: Optional[GoldPredictor] = None
 vn_gold_predictor: Optional[VietnamGoldPredictor] = None
 data_fetcher: Optional[RealTimeDataFetcher] = None
+news_fetcher: Optional[NewsFetcher] = None
+sentiment_analyzer: Optional[SentimentAnalyzer] = None
 
 # Prediction cache for instant loading
 # Cache structure: {endpoint_key: {"data": response_data, "timestamp": datetime}}
@@ -75,7 +81,8 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(load_model_background())
     asyncio.create_task(load_gold_model_background())
     asyncio.create_task(load_vn_gold_model_background())
-    
+    asyncio.create_task(init_news_sentiment())
+
     elapsed = (datetime.now() - start_time).total_seconds()
     print(f"[{datetime.now().time()}] [OK] App startup complete in {elapsed:.2f}s (Model loading in background)", flush=True)
     
@@ -128,13 +135,23 @@ async def load_vn_gold_model_background():
     """Load Vietnam Gold model in background."""
     global vn_gold_predictor
     
-    print(f"[{datetime.now().time()}] [LOADING] Background: Starting VN Gold model loading...", flush=True)
-    
     try:
         vn_gold_predictor = await asyncio.to_thread(_load_vn_gold_model_logic)
         print(f"[{datetime.now().time()}] [OK] Background: VN Gold model loaded successfully!", flush=True)
     except Exception as e:
         print(f"[{datetime.now().time()}] [ERROR] Background: VN Gold model loading failed: {e}", flush=True)
+
+
+async def init_news_sentiment():
+    """Initialize news sentiment components."""
+    global news_fetcher, sentiment_analyzer
+    print(f"[{datetime.now().time()}] [LOADING] Background: Initializing News Sentiment...", flush=True)
+    try:
+        news_fetcher = NewsFetcher()
+        sentiment_analyzer = SentimentAnalyzer()
+        print(f"[{datetime.now().time()}] [OK] Background: News Sentiment initialized", flush=True)
+    except Exception as e:
+        print(f"[{datetime.now().time()}] [ERROR] Background: News Sentiment failed: {e}", flush=True)
 
 
 def _load_vn_gold_model_logic():
@@ -187,9 +204,10 @@ app = FastAPI(
 )
 
 # Add CORS middleware
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "https://dubaovangbac.com,http://localhost:8000,http://127.0.0.1:8000").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for development
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -412,7 +430,8 @@ async def predict_vietnam_gold():
             "last_known": last_known,
             "summary": summary,
             "exchange_rate": 25450,
-            "model_info": model_info
+            "model_info": model_info,
+            "accuracy_check": vn_gold_predictor.get_yesterday_accuracy()
         }
 
         # Update cache for next request
@@ -897,12 +916,15 @@ async def gold_model_info():
 
 
 @app.post("/api/update")
-async def update_data():
+async def update_data(x_api_key: str = Header(default="")):
     """
     Cập nhật dữ liệu giá mới nhất từ API vào file CSV.
     """
+    if UPDATE_SECRET and x_api_key != UPDATE_SECRET:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
     global data_fetcher
-    
+
     try:
         csv_path = os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -922,13 +944,16 @@ async def update_data():
 
 
 @app.post("/api/update-daily")
-async def update_daily():
+async def update_daily(x_api_key: str = Header(default="")):
     """
     Cập nhật dữ liệu giá bạc hàng ngày.
     Được gọi bởi cron job mỗi ngày để cập nhật dữ liệu mới nhất.
     """
+    if UPDATE_SECRET and x_api_key != UPDATE_SECRET:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
     global data_fetcher, predictor
-    
+
     try:
         import pandas as pd
         
@@ -983,13 +1008,16 @@ async def update_daily():
 
 
 @app.post("/api/update-external")
-async def update_external_data():
+async def update_external_data(x_api_key: str = Header(default="")):
     """
     Cập nhật dữ liệu external (Gold, DXY, VIX) và reload model.
     Được gọi bởi cron job sau khi update-daily để đảm bảo model có dữ liệu mới nhất.
     """
+    if UPDATE_SECRET and x_api_key != UPDATE_SECRET:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
     global predictor
-    
+
     try:
         import sys
         import pandas as pd
@@ -1289,201 +1317,6 @@ async def health_check():
     }
 
 
-@app.get("/api/news")
-async def get_market_news():
-    """
-    Lấy tin tức thị trường kim loại quý từ RSS feeds.
-    """
-    import requests
-    from xml.etree import ElementTree
-    
-    news_items = []
-    
-    # RSS feeds for precious metals news
-    rss_feeds = [
-        {
-            "url": "https://www.kitco.com/rss/news.xml",
-            "source": "Kitco",
-            "icon": "🥇"
-        },
-        {
-            "url": "https://www.gold.org/feed",
-            "source": "World Gold Council",
-            "icon": "🌍"
-        }
-    ]
-    
-    for feed in rss_feeds:
-        try:
-            response = requests.get(feed["url"], timeout=10)
-            if response.status_code == 200:
-                root = ElementTree.fromstring(response.content)
-                
-                # Parse RSS items
-                for item in root.findall(".//item")[:5]:  # Get top 5 from each
-                    title = item.find("title")
-                    link = item.find("link")
-                    pub_date = item.find("pubDate")
-                    
-                    if title is not None:
-                        news_items.append({
-                            "title": title.text,
-                            "link": link.text if link is not None else "#",
-                            "date": pub_date.text if pub_date is not None else "",
-                            "source": feed["source"],
-                            "icon": feed["icon"]
-                        })
-        except Exception as e:
-            print(f"Error fetching {feed['source']}: {e}")
-            continue
-    
-    # If no news from RSS, provide fallback static news
-    if not news_items:
-        news_items = [
-            {
-                "title": "Giá bạc tăng do nhu cầu công nghiệp",
-                "link": "#",
-                "date": datetime.now().strftime("%a, %d %b %Y"),
-                "source": "Market Update",
-                "icon": "📈"
-            },
-            {
-                "title": "USD suy yếu hỗ trợ kim loại quý",
-                "link": "#",
-                "date": datetime.now().strftime("%a, %d %b %Y"),
-                "source": "Market Update",
-                "icon": "💵"
-            },
-            {
-                "title": "Fed giữ lãi suất, vàng bạc phản ứng tích cực",
-                "link": "#",
-                "date": datetime.now().strftime("%a, %d %b %Y"),
-                "source": "Market Update",
-                "icon": "🏦"
-            }
-        ]
-    
-    return {
-        "success": True,
-        "news": news_items[:10],  # Limit to 10 items
-        "timestamp": datetime.now().isoformat()
-    }
-
-
-@app.get("/api/performance-transparency")
-async def get_performance_transparency():
-    """
-    Enhanced performance transparency with detailed backtesting metrics.
-    Shows yesterday's forecast vs today's actual with accuracy metrics.
-    """
-    global predictor
-    
-    try:
-        if predictor is None:
-            return {
-                "success": False,
-                "message": "Model not loaded"
-            }
-        
-        # Get yesterday's prediction accuracy
-        accuracy_check = predictor.get_yesterday_accuracy()
-        
-        if accuracy_check is None:
-            return {
-                "success": False,
-                "message": "Insufficient data for accuracy calculation"
-            }
-        
-        # Calculate additional metrics
-        predicted = accuracy_check['predicted_usd']
-        actual = accuracy_check['actual_usd']
-        diff = accuracy_check['diff_usd']
-        accuracy = accuracy_check['accuracy']
-        
-        # Convert to VND for display
-        vnd_conversion = predictor.usd_vnd_rate * predictor.troy_ounce_to_luong * predictor.vietnam_premium
-        predicted_vnd = predicted * vnd_conversion
-        actual_vnd = actual * vnd_conversion
-        diff_vnd = diff * vnd_conversion
-        
-        # Determine performance grade
-        if accuracy >= 95:
-            grade = "A+"
-            grade_color = "#27ae60"
-            comment = "Excellent prediction accuracy"
-        elif accuracy >= 90:
-            grade = "A"
-            grade_color = "#27ae60"
-            comment = "Very good prediction"
-        elif accuracy >= 85:
-            grade = "B+"
-            grade_color = "#f39c12"
-            comment = "Good prediction accuracy"
-        elif accuracy >= 80:
-            grade = "B"
-            grade_color = "#f39c12"
-            comment = "Acceptable prediction"
-        elif accuracy >= 70:
-            grade = "C"
-            grade_color = "#e67e22"
-            comment = "Fair prediction accuracy"
-        else:
-            grade = "D"
-            grade_color = "#e74c3c"
-            comment = "Poor prediction accuracy"
-        
-        # Direction accuracy (up/down correctly predicted)
-        direction_correct = None
-        if hasattr(predictor, 'data') and predictor.data is not None and len(predictor.data) >= 3:
-            prices = predictor.data['price'].tail(3).values if 'price' in predictor.data.columns else []
-            if len(prices) >= 3:
-                # Predicted direction (up if predicted > previous day)
-                prev_actual = prices[-2]
-                actual_today = prices[-1]
-                
-                predicted_direction = "up" if predicted > prev_actual else "down"
-                actual_direction = "up" if actual_today > prev_actual else "down"
-                
-                direction_correct = predicted_direction == actual_direction
-        
-        return {
-            "success": True,
-            "performance": {
-                "date": accuracy_check['date'],
-                "forecast": {
-                    "usd": round(predicted, 2),
-                    "vnd": round(predicted_vnd, 0),
-                    "direction": "up" if predicted > actual - diff else "down"
-                },
-                "actual": {
-                    "usd": round(actual, 2),
-                    "vnd": round(actual_vnd, 0),
-                    "direction": "up" if len(predictor.data) > 1 and actual > predictor.data['price'].iloc[-2] else "down"
-                },
-                "difference": {
-                    "usd": round(diff, 2),
-                    "vnd": round(diff_vnd, 0),
-                    "percentage": round((diff / actual) * 100, 2)
-                },
-                "accuracy": {
-                    "overall": round(accuracy, 1),
-                    "grade": grade,
-                    "grade_color": grade_color,
-                    "comment": comment,
-                    "direction_correct": direction_correct
-                },
-                "model_confidence": "High" if accuracy >= 85 else "Medium" if accuracy >= 75 else "Low"
-            },
-            "timestamp": datetime.now().isoformat()
-        }
-        
-    except Exception as e:
-        return {
-            "success": False,
-            "message": f"Error calculating performance: {str(e)}"
-        }
-
-
 @app.get("/api/accuracy")
 async def get_prediction_accuracy():
     """
@@ -1714,11 +1547,7 @@ if os.path.exists(frontend_dir):
     async def get_favicon():
         return FileResponse(os.path.join(frontend_dir, "favicon.png"))
 
-    # Serve HTML pages from root
-    @app.get("/")
-    async def get_index():
-        return FileResponse(os.path.join(frontend_dir, "index.html"))
-
+    # Serve HTML pages with .html extension (aliases)
     @app.get("/index.html")
     async def get_index_explicit():
         return FileResponse(os.path.join(frontend_dir, "index.html"))
@@ -1730,6 +1559,27 @@ if os.path.exists(frontend_dir):
     @app.get("/gold.html")
     async def get_gold_page():
         return FileResponse(os.path.join(frontend_dir, "gold.html"))
+
+
+# ========== SENTIMENT ENDPOINT ==========
+@app.get("/api/sentiment")
+async def get_sentiment_score():
+    """Get aggregated sentiment score for widgets."""
+    global news_fetcher, sentiment_analyzer
+
+    if news_fetcher is None or sentiment_analyzer is None:
+        return {"success": False, "overall_sentiment": 50, "overall_label": "Neutral"}
+
+    try:
+        raw_news = await asyncio.to_thread(news_fetcher.fetch_feeds)
+        result = sentiment_analyzer.analyze_news(raw_news)
+        return {
+            "success": True,
+            "overall_sentiment": result.get('overall_sentiment', 50),
+            "overall_label": result.get('overall_label', 'Neutral')
+        }
+    except Exception:
+        return {"success": False, "overall_sentiment": 50, "overall_label": "Neutral"}
 
 
 if __name__ == "__main__":
@@ -2040,7 +1890,7 @@ _news_cache = {
     "cache_duration": timedelta(hours=1)
 }
 
-NEWS_API_KEY = "6efdb5ae0c784b07a3f854c43d241f8e"
+NEWS_API_KEY = os.getenv("NEWS_API_KEY", "")
 
 @app.get("/api/news")
 async def get_gold_news(

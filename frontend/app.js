@@ -158,86 +158,57 @@ async function fetchFearGreedIndex() {
 }
 
 // ========== PERFORMANCE TRANSPARENCY ==========
-async function fetchPerformanceTransparency() {
-    try {
-        const endpoint = state.asset === 'gold' ?
-            `${API_BASE}/api/gold/accuracy` :
-            `${API_BASE}/api/performance-transparency`;
+// ========== PERFORMANCE TRANSPARENCY ==========
+function updatePerformanceDisplay() {
+    // Use data embedded in predictions response
+    if (!state.predictions || !state.predictions.accuracy_check) return;
 
-        const response = await fetch(endpoint);
-        const data = await response.json();
-
-        if (data.success) {
-            updatePerformanceDisplay(data.performance);
-        }
-    } catch (error) {
-        console.error('Error fetching performance transparency:', error);
-    }
-}
-
-function updatePerformanceDisplay(performance) {
+    const accuracy = state.predictions.accuracy_check;
     const accuracyContent = document.getElementById('accuracyContent');
     const accuracyBadge = document.getElementById('accuracyBadge');
 
     if (!accuracyContent) return;
 
-    const {
-        date,
-        forecast,
-        actual,
-        difference,
-        accuracy,
-        model_confidence
-    } = performance;
+    const diffClass = accuracy.diff >= 0 ? 'positive' : 'negative';
+    const diffSign = accuracy.diff >= 0 ? '+' : '';
 
-    // Create detailed HTML
     const performanceHTML = `
         <div class="performance-grid">
             <div class="perf-item">
-                <div class="perf-label">📅 Date</div>
-                <div class="perf-value">${date}</div>
+                <div class="perf-label">📅 Ngày</div>
+                <div class="perf-value">${formatDate(accuracy.date)}</div>
             </div>
             <div class="perf-item">
-                <div class="perf-label">🎯 Forecast</div>
-                <div class="perf-value">${state.currency === 'VND' ?
-            new Intl.NumberFormat('vi-VN').format(forecast.vnd) + ' VND' :
-            '$' + forecast.usd}</div>
+                <div class="perf-label">🎯 Dự báo (Hôm qua)</div>
+                <div class="perf-value">${formatPrice(accuracy.predicted)} <small>${accuracy.unit || ''}</small></div>
             </div>
             <div class="perf-item">
-                <div class="perf-label">📊 Actual</div>
-                <div class="perf-value">${state.currency === 'VND' ?
-            new Intl.NumberFormat('vi-VN').format(actual.vnd) + ' VND' :
-            '$' + actual.usd}</div>
+                <div class="perf-label">📊 Thực tế (Hôm nay)</div>
+                <div class="perf-value">${formatPrice(accuracy.actual)} <small>${accuracy.unit || ''}</small></div>
             </div>
             <div class="perf-item">
-                <div class="perf-label">📈 Difference</div>
-                <div class="perf-value ${difference.percentage > 0 ? 'positive' : 'negative'}">
-                    ${difference.percentage > 0 ? '+' : ''}${difference.percentage}%
+                <div class="perf-label">📈 Chênh lệch</div>
+                <div class="perf-value ${diffClass}">
+                    ${diffSign}${formatPrice(accuracy.diff)} (${accuracy.diff_pct}%)
                 </div>
             </div>
             <div class="perf-item highlight">
-                <div class="perf-label">✅ Accuracy</div>
-                <div class="perf-value" style="color: ${accuracy.grade_color}">
-                    ${accuracy.overall}% (${accuracy.grade})
+                <div class="perf-label">✅ Độ chính xác</div>
+                <div class="perf-value" style="color: #00d97e">
+                    ${accuracy.accuracy}%
                 </div>
-            </div>
-            <div class="perf-item">
-                <div class="perf-label">💪 Confidence</div>
-                <div class="perf-value">${model_confidence}</div>
             </div>
         </div>
         <div class="performance-comment">
-            <strong>${accuracy.comment}</strong>
-            ${accuracy.direction_correct !== null ?
-            `| Direction: ${accuracy.direction_correct ? '✅ Correct' : '❌ Wrong'}` : ''}
+            <strong>AI đã dự đoán chính xác ${accuracy.accuracy}% hôm nay.</strong>
         </div>
     `;
 
     accuracyContent.innerHTML = performanceHTML;
 
     if (accuracyBadge) {
-        accuracyBadge.textContent = `${accuracy.overall}%`;
-        accuracyBadge.style.backgroundColor = accuracy.grade_color;
+        accuracyBadge.textContent = `${accuracy.accuracy}%`;
+        accuracyBadge.style.backgroundColor = accuracy.accuracy >= 95 ? '#00d97e' : (accuracy.accuracy >= 90 ? '#f1c40f' : '#e74c3c');
     }
 }
 
@@ -693,6 +664,9 @@ function updatePriceCards() {
     elements.avgPrice.textContent = formatPrice(summary.avg_price);
     elements.exchangeRate.textContent = exchange_rate ?
         new Intl.NumberFormat('vi-VN').format(exchange_rate) + ' đ' : '--';
+
+    // Update performance widget (transparency)
+    updatePerformanceDisplay();
 }
 
 function updatePredictionTable() {
@@ -1327,7 +1301,7 @@ function showPrivacyPolicy() {
 function showContact() {
     alert('Liên hệ:\n\n' +
         '📧 Email: support@silverprice.ai\n' +
-        '🌐 Website: silver-price-prediction.onrender.com');
+        '🌐 Website: dubaovangbac.com');
 }
 
 // ===== GAUGE CHART & SENTIMENT =====
@@ -1475,6 +1449,52 @@ function updateAccuracy(check) {
     `;
 }
 
+// ===== NEWS SENTIMENT =====
+async function fetchNews() {
+    try {
+        const response = await fetch(`${API_BASE}/api/news?asset=${state.asset}`);
+        const data = await response.json();
+
+        if (data.success) {
+            updateNewsDisplay(data.news);
+        } else {
+            console.error('Failed to fetch news:', data.message);
+        }
+    } catch (error) {
+        console.error('Error fetching news:', error);
+    }
+}
+
+function updateNewsDisplay(newsData) {
+    if (!elements.newsList) return;
+
+    if (!newsData || newsData.length === 0) {
+        elements.newsList.innerHTML = '<div class="news-loading">Chưa có tin tức mới.</div>';
+        return;
+    }
+
+    const html = newsData.map(item => {
+        const sentimentClass = item.sentiment_label === 'Positive' ? 'positive' :
+            (item.sentiment_label === 'Negative' ? 'negative' : 'neutral');
+        const sentimentBadge = item.sentiment_label === 'Positive' ? '📈 Tích cực' :
+            (item.sentiment_label === 'Negative' ? '📉 Tiêu cực' : '⚖️ Trung lập');
+
+        return `
+            <div class="news-item">
+                <div class="news-meta">
+                    <span class="news-source">${item.source}</span>
+                    <span class="news-time">${item.date ? new Date(item.date).toLocaleDateString('vi-VN') : ''}</span>
+                    <span class="sentiment-badge ${sentimentClass}">${sentimentBadge} (${item.sentiment_score})</span>
+                </div>
+                <h4 class="news-title"><a href="${item.link}" target="_blank">${item.title}</a></h4>
+                <p class="news-summary">${item.summary ? item.summary.substring(0, 100) + '...' : ''}</p>
+            </div>
+        `;
+    }).join('');
+
+    elements.newsList.innerHTML = html;
+}
+
 // ===== CALCULATOR =====
 function showCalculator() {
     const modal = document.getElementById('calculatorModal');
@@ -1484,6 +1504,52 @@ function showCalculator() {
         if (elements.calcAsset) elements.calcAsset.value = state.asset;
         updateCalc();
     }
+}
+
+// ===== NEWS SENTIMENT =====
+async function fetchNews() {
+    try {
+        const response = await fetch(`${API_BASE}/api/news?asset=${state.asset}`);
+        const data = await response.json();
+
+        if (data.success) {
+            updateNewsDisplay(data.news);
+        } else {
+            console.error('Failed to fetch news:', data.message);
+        }
+    } catch (error) {
+        console.error('Error fetching news:', error);
+    }
+}
+
+function updateNewsDisplay(newsData) {
+    if (!elements.newsList) return;
+
+    if (!newsData || newsData.length === 0) {
+        elements.newsList.innerHTML = '<div class="news-loading">Chưa có tin tức mới.</div>';
+        return;
+    }
+
+    const html = newsData.map(item => {
+        const sentimentClass = item.sentiment_label === 'Positive' ? 'positive' :
+            (item.sentiment_label === 'Negative' ? 'negative' : 'neutral');
+        const sentimentBadge = item.sentiment_label === 'Positive' ? '📈 Tích cực' :
+            (item.sentiment_label === 'Negative' ? '📉 Tiêu cực' : '⚖️ Trung lập');
+
+        return `
+            <div class="news-item">
+                <div class="news-meta">
+                    <span class="news-source">${item.source}</span>
+                    <span class="news-time">${item.date ? new Date(item.date).toLocaleDateString('vi-VN') : ''}</span>
+                    <span class="sentiment-badge ${sentimentClass}">${sentimentBadge} (${item.sentiment_score})</span>
+                </div>
+                <h4 class="news-title"><a href="${item.link}" target="_blank">${item.title}</a></h4>
+                <p class="news-summary">${item.summary ? item.summary.substring(0, 100) + '...' : ''}</p>
+            </div>
+        `;
+    }).join('');
+
+    elements.newsList.innerHTML = html;
 }
 
 function updateCalcAsset() {
@@ -1841,9 +1907,16 @@ function toggleBuyScoreFactors() {
     }
 }
 
-// Load buy score after initial load and refresh periodically
-setTimeout(loadBuyScore, 2000);
-setInterval(loadBuyScore, 300000); // Every 5 minutes
+// Load buy score and news after initial load and refresh periodically
+setTimeout(() => {
+    loadBuyScore();
+    fetchNews();
+}, 2000);
+
+setInterval(() => {
+    loadBuyScore();
+    fetchNews();
+}, 300000); // Every 5 minutes
 
 // Also reload buy score when asset changes
 const originalToggleAsset = typeof toggleAsset === 'function' ? toggleAsset : null;
@@ -1854,7 +1927,10 @@ if (originalToggleAsset) {
 // Hook into asset toggle to reload buy score
 document.addEventListener('click', function (e) {
     if (e.target.classList.contains('toggle-btn')) {
-        setTimeout(loadBuyScore, 500);
+        setTimeout(() => {
+            loadBuyScore();
+            fetchNews();
+        }, 500);
     }
 });
 

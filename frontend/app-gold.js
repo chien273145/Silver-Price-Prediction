@@ -240,17 +240,60 @@ function updateMarketAnalysisDisplay(data) {
 }
 
 // ========== PERFORMANCE TRANSPARENCY ==========
-async function fetchPerformanceTransparency() {
-    try {
-        // Gold uses the gold-specific performance endpoint
-        const response = await fetch(`${API_BASE}/api/gold/performance-transparency`);
-        const data = await response.json();
+// ========== PERFORMANCE TRANSPARENCY ==========
+function updatePerformanceDisplay() {
+    // Use data embedded in predictions response
+    if (!state.predictions || !state.predictions.accuracy_check) return;
 
-        if (data.success) {
-            updatePerformanceDisplay(data.performance);
-        }
-    } catch (error) {
-        console.error('Error fetching performance transparency:', error);
+    const accuracy = state.predictions.accuracy_check;
+    const accuracyContent = document.getElementById('accuracyContent');
+    const accuracyBadge = document.getElementById('accuracyBadge');
+
+    if (!accuracyContent) return;
+
+    // accuracy_check returns { date, actual, predicted, diff, diff_pct, accuracy, unit }
+    // We map it to the display format
+
+    const diffClass = accuracy.diff >= 0 ? 'positive' : 'negative';
+    const diffSign = accuracy.diff >= 0 ? '+' : '';
+
+    const performanceHTML = `
+        <div class="performance-grid">
+            <div class="perf-item">
+                <div class="perf-label">📅 Ngày</div>
+                <div class="perf-value">${formatDate(accuracy.date)}</div>
+            </div>
+            <div class="perf-item">
+                <div class="perf-label">🎯 Dự báo (Hôm qua)</div>
+                <div class="perf-value">${formatPrice(accuracy.predicted)} <small>tr</small></div>
+            </div>
+            <div class="perf-item">
+                <div class="perf-label">📊 Thực tế (Hôm nay)</div>
+                <div class="perf-value">${formatPrice(accuracy.actual)} <small>tr</small></div>
+            </div>
+            <div class="perf-item">
+                <div class="perf-label">📈 Chênh lệch</div>
+                <div class="perf-value ${diffClass}">
+                    ${diffSign}${formatPrice(accuracy.diff)} (${accuracy.diff_pct}%)
+                </div>
+            </div>
+            <div class="perf-item highlight">
+                <div class="perf-label">✅ Độ chính xác</div>
+                <div class="perf-value" style="color: #00d97e">
+                    ${accuracy.accuracy}%
+                </div>
+            </div>
+        </div>
+        <div class="performance-comment">
+            <strong>AI đã dự đoán chính xác ${accuracy.accuracy}% giá vàng hôm nay.</strong>
+        </div>
+    `;
+
+    accuracyContent.innerHTML = performanceHTML;
+
+    if (accuracyBadge) {
+        accuracyBadge.textContent = `${accuracy.accuracy}%`;
+        accuracyBadge.style.backgroundColor = accuracy.accuracy >= 95 ? '#00d97e' : (accuracy.accuracy >= 90 ? '#f1c40f' : '#e74c3c');
     }
 }
 
@@ -597,7 +640,18 @@ function updatePriceCards() {
     }
 
     // Predicted price (day 7)
+    // Predicted price (day 7)
     elements.predictedPrice.textContent = lastPred.predicted_price.toLocaleString('vi-VN');
+
+    // Update range (New)
+    const rangeEl = document.getElementById('predictedRange');
+    if (rangeEl && lastPred.lower && lastPred.upper) {
+        const low = formatPrice(lastPred.lower);
+        const high = formatPrice(lastPred.upper);
+        rangeEl.textContent = `Vùng an toàn: ${low} - ${high}`;
+    } else if (rangeEl) {
+        rangeEl.textContent = '';
+    }
 
     // Prediction change
     if (elements.predictionChange) {
@@ -627,6 +681,55 @@ function updatePriceCards() {
 
     // No exchange rate for VN Gold (already in VND)
     elements.exchangeRate.textContent = 'Giá SJC Việt Nam';
+
+    // Update performance widget (transparency)
+    updatePerformanceDisplay();
+}
+
+// ===== NEWS SENTIMENT =====
+async function fetchNews() {
+    try {
+        const response = await fetch(`${API_BASE}/api/news?asset=gold`);
+        const data = await response.json();
+
+        if (data.success) {
+            updateNewsDisplay(data.news);
+        } else {
+            console.error('Failed to fetch news:', data.message);
+        }
+    } catch (error) {
+        console.error('Error fetching news:', error);
+    }
+}
+
+function updateNewsDisplay(newsData) {
+    if (!elements.newsList) return;
+
+    if (!newsData || newsData.length === 0) {
+        elements.newsList.innerHTML = '<div class="news-loading">Chưa có tin tức mới.</div>';
+        return;
+    }
+
+    const html = newsData.map(item => {
+        const sentimentClass = item.sentiment_label === 'Positive' ? 'positive' :
+            (item.sentiment_label === 'Negative' ? 'negative' : 'neutral');
+        const sentimentBadge = item.sentiment_label === 'Positive' ? '📈 Tích cực' :
+            (item.sentiment_label === 'Negative' ? '📉 Tiêu cực' : '⚖️ Trung lập');
+
+        return `
+            <div class="news-item">
+                <div class="news-meta">
+                    <span class="news-source">${item.source}</span>
+                    <span class="news-time">${item.date ? new Date(item.date).toLocaleDateString('vi-VN') : ''}</span>
+                    <span class="sentiment-badge ${sentimentClass}">${sentimentBadge} (${item.sentiment_score})</span>
+                </div>
+                <h4 class="news-title"><a href="${item.link}" target="_blank">${item.title}</a></h4>
+                <p class="news-summary">${item.summary ? item.summary.substring(0, 100) + '...' : ''}</p>
+            </div>
+        `;
+    }).join('');
+
+    elements.newsList.innerHTML = html;
 }
 
 function updatePredictionTable() {
@@ -712,6 +815,23 @@ function updateChart() {
         }))
     ];
 
+    // Prepare confidence data
+    const confidenceLower = [
+        { x: lastDate, y: lastPrice },
+        ...state.predictions.predictions.map(item => ({
+            x: new Date(item.date),
+            y: item.lower !== undefined ? item.lower : item.predicted_price
+        }))
+    ];
+
+    const confidenceUpper = [
+        { x: lastDate, y: lastPrice },
+        ...state.predictions.predictions.map(item => ({
+            x: new Date(item.date),
+            y: item.upper !== undefined ? item.upper : item.predicted_price
+        }))
+    ];
+
     if (state.chart) {
         state.chart.destroy();
     }
@@ -736,15 +856,32 @@ function updateChart() {
                 {
                     label: 'Dự đoán',
                     data: predictionData,
-                    borderColor: 'rgba(59, 130, 246, 1)',
                     backgroundColor: 'rgba(59, 130, 246, 0.2)',
                     fill: true,
                     tension: 0.4,
                     pointRadius: 4,
-                    pointBackgroundColor: 'rgba(59, 130, 246, 1)',
-                    borderWidth: 3,
-                    borderDash: [5, 5]
+                    pointHoverRadius: 6,
+                    borderWidth: 2,
+                    order: 1
+                },
+                {
+                    label: 'Vùng tin cậy (Thấp)',
+                    data: confidenceLower,
+                    borderColor: 'transparent',
+                    pointRadius: 0,
+                    fill: false,
+                    order: 2
+                },
+                {
+                    label: 'Vùng tin cậy (Cao)',
+                    data: confidenceUpper,
+                    borderColor: 'transparent',
+                    backgroundColor: 'rgba(255, 215, 0, 0.15)', // Gold cloud
+                    pointRadius: 0,
+                    fill: '-1', // Fill to previous dataset (Lower)
+                    order: 3
                 }
+
             ]
         },
         options: {
@@ -1504,8 +1641,15 @@ function toggleBuyScoreFactors() {
     }
 }
 
-setTimeout(loadBuyScore, 2000);
-setInterval(loadBuyScore, 300000);
+setTimeout(() => {
+    loadBuyScore();
+    fetchNews();
+}, 2000);
+
+setInterval(() => {
+    loadBuyScore();
+    fetchNews();
+}, 300000);
 
 console.log('🥇 app-gold.js v2.3.0 - Vietnam SJC Gold');
 console.log('🇻🇳 Transfer Learning Model: R²=0.9792, MAPE=1.21%');

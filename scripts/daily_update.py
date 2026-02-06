@@ -107,19 +107,33 @@ def run_retraining():
         print("\n🥈 Starting Silver Model Retraining...")
         from src.enhanced_predictor import EnhancedPredictor
         silver_predictor = EnhancedPredictor()
-        
+
         # Load & Auto-Patch Silver Data
         print("4. Loading Silver Data (Auto-Patching)...")
-        silver_predictor.load_data() 
-        # load_data now triggers _patch_missing_data automatically
-        
+        silver_predictor.load_data()
+
         print("5. Training Silver Model...")
         silver_predictor.create_features()
         silver_metrics = silver_predictor.train()
         silver_predictor.save_model()
         print("✅ Silver Retraining Complete!")
         print(f"Metrics: {silver_metrics}")
-        
+
+        # 7. WORLD GOLD Retraining
+        print("\n🥇 Starting World Gold Model Retraining...")
+        from src.gold_predictor import GoldPredictor
+        gold_predictor = GoldPredictor()
+
+        print("6. Loading Gold Data...")
+        gold_predictor.load_data()
+
+        print("7. Training Gold Model...")
+        gold_predictor.create_features()
+        gold_metrics = gold_predictor.train()
+        gold_predictor.save_model()
+        print("✅ World Gold Retraining Complete!")
+        print(f"Metrics: {gold_metrics}")
+
         return True
         
     except Exception as e:

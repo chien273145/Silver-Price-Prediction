@@ -47,7 +47,7 @@ class VietnamGoldPredictor:
         self.transfer_models = {}
         self.scaler = None
         self.feature_columns = []
-        self.metrics = {'r2': {}, 'mape': {}}
+        self.metrics = {'r2': {}, 'mape': {}, 'rmse': {}}
         
         # Exchange rate
         self.usd_vnd_rate = DEFAULT_USD_VND_RATE
@@ -295,16 +295,19 @@ class VietnamGoldPredictor:
             y_pred = model.predict(X_test)
             r2 = model.score(X_test, y_test)
             mape = np.mean(np.abs((y_test - y_pred) / y_test)) * 100
+            rmse = np.sqrt(np.mean((y_test - y_pred)**2))
             
             self.transfer_models[day] = model
             self.metrics['r2'][day] = r2
             self.metrics['mape'][day] = mape
+            self.metrics['rmse'][day] = rmse
             
-            print(f"  Day {day}: R²={r2:.4f}, MAPE={mape:.2f}%")
+            print(f"  Day {day}: R²={r2:.4f}, MAPE={mape:.2f}%, RMSE={rmse:.4f}")
         
         avg_r2 = np.mean(list(self.metrics['r2'].values()))
         avg_mape = np.mean(list(self.metrics['mape'].values()))
-        print(f"Average: R²={avg_r2:.4f}, MAPE={avg_mape:.2f}%")
+        avg_rmse = np.mean(list(self.metrics['rmse'].values()))
+        print(f"Average: R²={avg_r2:.4f}, MAPE={avg_mape:.2f}%, RMSE={avg_rmse:.4f}")
         
         return self.metrics
     
@@ -434,12 +437,18 @@ class VietnamGoldPredictor:
                 pred_price = self.transfer_models[day].predict(latest_scaled)[0]
                 change = ((pred_price - last_price) / last_price) * 100
 
+                # Confidence Interval (95% => 1.96 * RMSE)
+                rmse = self.metrics.get('rmse', {}).get(day, 0.5)
+                margin = 1.96 * rmse
+                
                 predictions.append({
                     'date': current_date.strftime('%Y-%m-%d'),
                     'day': day,
                     'predicted_price': round(pred_price, 2),
                     'change_percent': round(change, 2),
-                    'unit': 'triệu VND/lượng'
+                    'unit': 'triệu VND/lượng',
+                    'lower': round(pred_price - margin, 2),
+                    'upper': round(pred_price + margin, 2)
                 })
             
             return predictions
@@ -479,12 +488,18 @@ class VietnamGoldPredictor:
             pred_price = self.transfer_models[day].predict(latest_scaled)[0]
             change = ((pred_price - last_price) / last_price) * 100
 
+            # Confidence Interval (95% => 1.96 * RMSE)
+            rmse = self.metrics.get('rmse', {}).get(day, 0.5)
+            margin = 1.96 * rmse
+
             predictions.append({
                 'date': current_date.strftime('%Y-%m-%d'),
                 'day': day,
                 'predicted_price': round(pred_price, 2),
                 'change_percent': round(change, 2),
-                'unit': 'triệu VND/lượng'
+                'unit': 'triệu VND/lượng',
+                'lower': round(pred_price - margin, 2),
+                'upper': round(pred_price + margin, 2)
             })
         
         return predictions
@@ -533,6 +548,76 @@ class VietnamGoldPredictor:
             'direction_accuracy': round((avg_r2 * 100 + (100 - avg_mape)) / 2, 2),
             'overall_accuracy': round((avg_r2 * 100 + (100 - avg_mape) * 0.5) / 1.5, 2)
         }
+
+    def get_yesterday_accuracy(self) -> dict:
+        """Calculate accuracy of yesterday's prediction vs today's actual price."""
+        if self.vn_data is None:
+            self.load_vietnam_data()
+            
+        # Get latest actual data
+        latest = self.vn_data.iloc[-1]
+        yesterday_actual = self.vn_data.iloc[-2]
+        
+        # In a real scenario, we would need stored predictions from yesterday.
+        # Since we don't have a DB of past predictions, we simulate "yesterday's prediction"
+        # by creating a prediction using data up to yesterday (t-2).
+        
+        # Or simpler: Just return a dummy structure if we can't calculate deeply,
+        # but better: Use the model to predict for 'today' using data up to 'yesterday'.
+        
+        try:
+            # Data up to T-1 (Yesterday relative to dataset)
+            # Actually, to predict T (Today), we need input from T-1.
+            # So we use data except the last row.
+            
+            # This is expensive to re-process all features for just one check?
+            # We can just look at the last model metrics.
+            
+            # Let's implementation a simplified version using the trained model on test set?
+            # No, let's just return None if we can't easily reproduce it without full re-run.
+            
+            # Better approach: Compare T (Today) actual vs T (Predicted by model from T-1)
+            # We already have the model. We can run inference on the T-1 state.
+            
+            # Get feature vector for T-1
+            # Feature columns should be ready in merged_data
+            if self.merged_data is None:
+                 self.create_transfer_features()
+                 
+            # Input for predicting T is the feature row at T-1
+            # verification: T is last row (iloc[-1]). T-1 is iloc[-2].
+            # Feature vector at T-1 predicts price at T.
+            
+            idx_t_minus_1 = -2
+            if abs(idx_t_minus_1) > len(self.merged_data):
+                return None
+                
+            features_t_minus_1 = self.merged_data[self.feature_columns].iloc[idx_t_minus_1:idx_t_minus_1+1].values
+            features_scaled = self.scaler.transform(features_t_minus_1)
+            
+            # Predict for Day 1
+            pred_price = self.transfer_models[1].predict(features_scaled)[0]
+            
+            # Actual price at T
+            actual_price = self.merged_data['mid_price'].iloc[-1]
+            actual_date = self.merged_data['date'].iloc[-1]
+            
+            diff = actual_price - pred_price
+            diff_pct = (diff / actual_price) * 100
+            accuracy = max(0, 100 - abs(diff_pct))
+            
+            return {
+                "date": actual_date.strftime('%Y-%m-%d'),
+                "actual": round(actual_price, 2),
+                "predicted": round(pred_price, 2),
+                "diff": round(diff, 2),
+                "diff_pct": round(diff_pct, 2),
+                "accuracy": round(accuracy, 2),
+                "unit": "triệu VND/lượng"
+            }
+        except Exception as e:
+            print(f"Error calculating yesterday accuracy: {e}")
+            return None
 
 
 def main():
