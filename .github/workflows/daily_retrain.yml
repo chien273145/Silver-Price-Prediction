@@ -37,11 +37,7 @@ jobs:
       run: |
         git config --global user.name 'GitHub Action'
         git config --global user.email 'action@github.com'
-        git add data/datasets/gold_price_sjc_complete.csv
-        git add data/datasets/gold_geopolitical_dataset.csv
-        git add models/vietnam_gold_models.pkl
-        git add dataset/dataset_silver.csv
-        git add models/enhanced_silver_model.pkl
+        git add -A models/ dataset/ data/ || true
         git diff --quiet && git diff --staged --quiet || (git commit -m "🤖 Daily Data Update & Model Retraining [skip ci]" && git push)
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
