@@ -286,6 +286,11 @@ async def blog_black_swan():
     path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'frontend', 'blog', 'gia-vang-sjc-nhan-tron-thien-nga-den.html')
     return FileResponse(path)
 
+@app.get("/blog/dau-tu-bac-silver-tiem-nang-2026")
+async def blog_silver_investment():
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'frontend', 'blog', 'dau-tu-bac-silver-tiem-nang-2026.html')
+    return FileResponse(path)
+
 
 # ========== DEDICATED PAGE ROUTES ==========
 @app.get("/silver")
