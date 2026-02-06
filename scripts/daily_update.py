@@ -152,11 +152,11 @@ if __name__ == "__main__":
     success_train = run_retraining()
     
         
-    if success_sjc and success_train:
+    if success_train:
         print("\n✨ ALL MODELS RETRAINED SUCCESSFULLY")
+        if not success_sjc:
+            print("⚠️ SJC scraping failed (non-critical)")
         sys.exit(0)
     else:
-        print("\n⚠️ SOME TASKS FAILED")
-        # Don't exit error code to ensure git commit happens for parcial success?
-        # Ideally exit 1 if critical failure.
-        sys.exit(1 if not success_train else 0)
+        print("\n⚠️ RETRAINING FAILED")
+        sys.exit(1)

@@ -279,7 +279,7 @@ class VietnamGoldPredictor:
         
         # Train models for each day
         self.transfer_models = {}
-        self.metrics = {'r2': {}, 'mape': {}}
+        self.metrics = {'r2': {}, 'mape': {}, 'rmse': {}}
         
         for day in range(1, self.prediction_days + 1):
             y = targets[day]
