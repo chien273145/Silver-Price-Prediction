@@ -800,64 +800,57 @@ async def get_performance_transparency():
 
 @app.get("/api/gold/performance-transparency")
 async def get_gold_performance_transparency():
-    """Get detailed performance metrics for Gold page."""
-    global gold_predictor, data_fetcher
+    """Get detailed performance metrics for Gold page using Vietnam gold data."""
+    global vn_gold_predictor
 
-    if gold_predictor is None:
-        return {"success": False, "error": "Gold model loading"}
+    if vn_gold_predictor is None:
+        return {"success": False, "error": "Vietnam gold model loading"}
 
     try:
-        acc_data = gold_predictor.get_yesterday_accuracy()
+        acc_data = vn_gold_predictor.get_yesterday_accuracy()
 
         if not acc_data:
             return {"success": False, "error": "Insufficient data"}
 
-        exchange_rate = 25450
-        if data_fetcher:
-            rate_data = data_fetcher.get_usd_vnd_rate()
-            if rate_data['rate']:
-                exchange_rate = rate_data['rate']
-
         acc_pct = acc_data['accuracy']
         grade = "Good"
         grade_color = "#3498db"
-        comment = "Model performing well within expected range."
+        comment = "Mô hình hoạt động tốt trong phạm vi dự kiến."
 
         if acc_pct >= 97:
             grade = "Excellent"
             grade_color = "#2ecc71"
-            comment = "High precision. Strong predictive signals detected."
+            comment = "Độ chính xác cao. Tín hiệu dự đoán mạnh."
         elif acc_pct >= 95:
             grade = "Very Good"
             grade_color = "#27ae60"
-            comment = "Solid performance. Minor deviation observed."
+            comment = "Hiệu suất tốt. Sai lệch nhỏ."
         elif acc_pct < 90:
             grade = "Fair"
             grade_color = "#f1c40f"
-            comment = "Moderate deviation due to market volatility."
+            comment = "Sai lệch vừa phải do biến động thị trường."
         if acc_pct < 85:
             grade = "Monitor"
             grade_color = "#e74c3c"
-            comment = "High volatility impacting accuracy."
+            comment = "Biến động cao ảnh hưởng đến độ chính xác."
 
-        # Gold price: USD/oz -> VND/luong
-        OZ_TO_LUONG = 1.20565
-        pred_vnd = acc_data['predicted_usd'] * exchange_rate * OZ_TO_LUONG
-        actual_vnd = acc_data['actual_usd'] * exchange_rate * OZ_TO_LUONG
+        # vn_gold_predictor returns prices in triệu VND/lượng
+        pred_vnd = acc_data['predicted'] * 1_000_000  # Convert to VND
+        actual_vnd = acc_data['actual'] * 1_000_000
 
         performance = {
             "date": acc_data['date'],
             "forecast": {
-                "usd": round(acc_data['predicted_usd'], 2),
+                "usd": round(acc_data['predicted'], 2),
                 "vnd": round(pred_vnd, -3)
             },
             "actual": {
-                "usd": round(acc_data['actual_usd'], 2),
+                "usd": round(acc_data['actual'], 2),
                 "vnd": round(actual_vnd, -3)
             },
             "difference": {
-                "percentage": round(((acc_data['predicted_usd'] - acc_data['actual_usd']) / acc_data['actual_usd']) * 100, 2),
-                "absolute_usd": round(abs(acc_data['predicted_usd'] - acc_data['actual_usd']), 2)
+                "percentage": round(acc_data['diff_pct'], 2),
+                "absolute_usd": round(abs(acc_data['diff']), 2)
             },
             "accuracy": {
                 "overall": round(acc_pct, 2),
