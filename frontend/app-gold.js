@@ -403,10 +403,6 @@ const elements = {
     toastContainer: document.getElementById('toastContainer'),
     refreshBtn: document.getElementById('refreshBtn'),
     dataStatus: document.getElementById('dataStatus'),
-    metricRMSE: document.getElementById('metricRMSE'),
-    metricMAE: document.getElementById('metricMAE'),
-    metricR2: document.getElementById('metricR2'),
-    metricMAPE: document.getElementById('metricMAPE'),
     newsList: document.getElementById('newsList'),
     refreshNewsBtn: document.getElementById('refreshNewsBtn'),
     accuracyBadge: document.getElementById('accuracyBadge'),
@@ -722,23 +718,23 @@ function updatePredictionTable() {
 }
 
 function updateModelMetrics() {
+    const modelR2 = document.getElementById('modelR2');
+    const modelMAPE = document.getElementById('modelMAPE');
+    const modelFeatures = document.getElementById('modelFeatures');
+    const modelData = document.getElementById('modelData');
+
     if (!state.modelInfo || !state.modelInfo.model_info) {
-        elements.metricRMSE.textContent = '--';
-        elements.metricMAE.textContent = '--';
-        elements.metricR2.textContent = '--';
-        elements.metricMAPE.textContent = '--';
+        if (modelR2) modelR2.textContent = '--';
+        if (modelMAPE) modelMAPE.textContent = '--';
         return;
     }
 
     const info = state.modelInfo.model_info;
 
-    if (info.test_metrics) {
-        const metrics = info.test_metrics;
-        elements.metricRMSE.textContent = `$${metrics.rmse?.toFixed(4) || '--'}`;
-        elements.metricMAE.textContent = `$${metrics.mae?.toFixed(4) || '--'}`;
-        elements.metricR2.textContent = metrics.r2?.toFixed(4) || '--';
-        elements.metricMAPE.textContent = `${metrics.mape?.toFixed(2) || '--'}%`;
-    }
+    if (modelR2) modelR2.textContent = info.test_metrics?.r2?.toFixed(4) || info.r2 || '--';
+    if (modelMAPE) modelMAPE.textContent = info.test_metrics?.mape ? `${info.test_metrics.mape.toFixed(2)}%` : (info.mape || '--');
+    if (modelFeatures) modelFeatures.textContent = info.n_features || info.features || '--';
+    if (modelData) modelData.textContent = info.data_sources || 'VIX, DXY, Oil';
 }
 
 function updateChart() {

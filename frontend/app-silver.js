@@ -329,6 +329,13 @@ function updateMarketFactorsDisplay(marketDrivers) {
     const marketFactorsEl = document.getElementById('marketFactors');
     if (!marketFactorsEl) return;
 
+    // VALIDITY CHECK: If no data or empty factors, KEEP STATIC CONTENT
+    if (!marketDrivers ||
+        (!marketDrivers.ai_explanation && (!marketDrivers.factors || marketDrivers.factors.length === 0))) {
+        console.warn('No market factors data available available. Keeping static content.');
+        return;
+    }
+
     const aiExplanation = marketDrivers.ai_explanation;
     let factorsHTML = '';
 
@@ -353,7 +360,7 @@ function updateMarketFactorsDisplay(marketDrivers) {
                 factorsHTML += `
                     <div class="factor-item dynamic ${impactClass}">
                         <h4>
-                            ${impactIcon} ${factor.factor} 
+                            ${impactIcon} ${factor.factor}
                             <span class="factor-value">${factor.value}</span>
                         </h4>
                         <p class="factor-reason">${factor.reason}</p>
@@ -374,13 +381,16 @@ function updateMarketFactorsDisplay(marketDrivers) {
                 </div>
             `;
         }
-    } else {
+    } else if (marketDrivers.factors && marketDrivers.factors.length > 0) {
         factorsHTML = marketDrivers.factors.map(factor =>
             `<div class="factor-item dynamic">
                 <h4>📊 Phân tích thị trường</h4>
                 <p>${factor}</p>
             </div>`
         ).join('');
+    } else {
+        // Double check fallthrough - should be caught by top check but just in case
+        return;
     }
 
     marketFactorsEl.innerHTML = factorsHTML;
@@ -404,8 +414,6 @@ const elements = {
     toastContainer: document.getElementById('toastContainer'),
     refreshBtn: document.getElementById('refreshBtn'),
     dataStatus: document.getElementById('dataStatus'),
-    metricRMSE: document.getElementById('metricRMSE'),
-    metricMAE: document.getElementById('metricMAE'),
     metricR2: document.getElementById('metricR2'),
     metricMAPE: document.getElementById('metricMAPE'),
     newsList: document.getElementById('newsList'),
@@ -646,23 +654,23 @@ function updatePredictionTable() {
 }
 
 function updateModelMetrics() {
+    const modelR2 = document.getElementById('modelR2');
+    const modelMAPE = document.getElementById('modelMAPE');
+    const modelFeatures = document.getElementById('modelFeatures');
+    const modelData = document.getElementById('modelData');
+
     if (!state.modelInfo || !state.modelInfo.model_info) {
-        elements.metricRMSE.textContent = '--';
-        elements.metricMAE.textContent = '--';
-        elements.metricR2.textContent = '--';
-        elements.metricMAPE.textContent = '--';
+        if (modelR2) modelR2.textContent = '--';
+        if (modelMAPE) modelMAPE.textContent = '--';
         return;
     }
 
     const info = state.modelInfo.model_info;
 
-    if (info.test_metrics) {
-        const metrics = info.test_metrics;
-        elements.metricRMSE.textContent = `$${metrics.rmse?.toFixed(4) || '--'}`;
-        elements.metricMAE.textContent = `$${metrics.mae?.toFixed(4) || '--'}`;
-        elements.metricR2.textContent = metrics.r2?.toFixed(4) || '--';
-        elements.metricMAPE.textContent = `${metrics.mape?.toFixed(2) || '--'}%`;
-    }
+    if (modelR2) modelR2.textContent = info.test_metrics?.r2?.toFixed(4) || info.r2 || '--';
+    if (modelMAPE) modelMAPE.textContent = info.test_metrics?.mape ? `${info.test_metrics.mape.toFixed(2)}%` : (info.mape || '--');
+    if (modelFeatures) modelFeatures.textContent = info.n_features || info.features || '--';
+    if (modelData) modelData.textContent = info.data_sources || 'VIX, DXY, Oil';
 }
 
 function updateChart() {
@@ -690,6 +698,23 @@ function updateChart() {
         }))
     ];
 
+    // Prepare confidence data (New)
+    const confidenceLower = [
+        { x: lastDate, y: lastPrice },
+        ...state.predictions.predictions.map(item => ({
+            x: new Date(item.date),
+            y: item.lower !== undefined ? item.lower : item.price
+        }))
+    ];
+
+    const confidenceUpper = [
+        { x: lastDate, y: lastPrice },
+        ...state.predictions.predictions.map(item => ({
+            x: new Date(item.date),
+            y: item.upper !== undefined ? item.upper : item.price
+        }))
+    ];
+
     if (state.chart) {
         state.chart.destroy();
     }
@@ -709,19 +734,38 @@ function updateChart() {
                     pointRadius: 0,
                     pointHoverRadius: 6,
                     pointHoverBackgroundColor: '#c0c0c0',
-                    borderWidth: 2
+                    borderWidth: 2,
+                    order: 3
+                },
+                {
+                    label: 'Vùng tin cậy (Thấp)',
+                    data: confidenceLower,
+                    borderColor: 'transparent',
+                    pointRadius: 0,
+                    fill: false,
+                    order: 2
+                },
+                {
+                    label: 'Vùng tin cậy (Cao)',
+                    data: confidenceUpper,
+                    borderColor: 'transparent',
+                    backgroundColor: 'rgba(59, 130, 246, 0.15)', // Blue cloud to match Silver theme
+                    pointRadius: 0,
+                    fill: '-1', // Fill to previous dataset (Lower)
+                    order: 1
                 },
                 {
                     label: 'Dự đoán',
                     data: predictionData,
                     borderColor: 'rgba(59, 130, 246, 1)',
                     backgroundColor: 'rgba(59, 130, 246, 0.2)',
-                    fill: true,
+                    fill: false,
                     tension: 0.4,
                     pointRadius: 4,
                     pointBackgroundColor: 'rgba(59, 130, 246, 1)',
                     borderWidth: 3,
-                    borderDash: [5, 5]
+                    borderDash: [5, 5],
+                    order: 0 // Top most
                 }
             ]
         },
