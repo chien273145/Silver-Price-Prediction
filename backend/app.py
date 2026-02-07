@@ -310,6 +310,11 @@ async def blog_silver_investment():
     path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'frontend', 'blog', 'dau-tu-bac-silver-tiem-nang-2026.html')
     return FileResponse(path)
 
+@app.get("/blog/gui-tiet-kiem-hay-mua-vang-so-sanh-roi")
+async def blog_savings_vs_gold():
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'frontend', 'blog', 'gui-tiet-kiem-hay-mua-vang-so-sanh-roi.html')
+    return FileResponse(path)
+
 
 # ========== DEDICATED PAGE ROUTES ==========
 @app.get("/silver")
