@@ -846,8 +846,8 @@ async function loadData() {
 
         if (predictionsData.status === 'fulfilled' && predictionsData.value.success) {
             state.predictions = predictionsData.value;
-            updatePriceCards();
-            updatePredictionTable();
+            try { updatePriceCards(); } catch (e) { console.error('Error updating price cards:', e); }
+            try { updatePredictionTable(); } catch (e) { console.error('Error updating prediction table:', e); }
         }
 
         if (historicalData.status === 'fulfilled' && historicalData.value.success) {

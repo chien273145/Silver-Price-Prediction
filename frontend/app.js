@@ -1041,15 +1041,15 @@ async function loadData() {
         let updated = false;
 
         if (predictions && predictions.success) {
-            updatePriceCards();
-            updatePredictionTable();
+            try { updatePriceCards(); } catch (e) { console.error('Error updating price cards:', e); }
+            try { updatePredictionTable(); } catch (e) { console.error('Error updating prediction table:', e); }
             updated = true;
         } else {
             console.error('No predictions data received or success=false', predictions);
             showToast('Không thể tải dữ liệu dự đoán', 'error');
             // Reset UI
-            updatePriceCards();
-            updatePredictionTable();
+            try { updatePriceCards(); } catch (e) { console.error('Error updating price cards:', e); }
+            try { updatePredictionTable(); } catch (e) { console.error('Error updating prediction table:', e); }
         }
 
         if (historical && historical.success && predictions && predictions.success) {
@@ -1094,9 +1094,9 @@ async function loadData() {
         showToast(`${msg} Vui lòng thử lại.`, 'error');
 
         // Reset UI to empty state on error
-        updatePriceCards();
-        updatePredictionTable();
-        updateModelMetrics();
+        try { updatePriceCards(); } catch (e) { console.error('Error resetting price cards:', e); }
+        try { updatePredictionTable(); } catch (e) { console.error('Error resetting prediction table:', e); }
+        try { updateModelMetrics(); } catch (e) { console.error('Error resetting model metrics:', e); }
         if (state.chart) state.chart.destroy();
 
     } finally {

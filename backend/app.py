@@ -1559,20 +1559,20 @@ async def get_gold_accuracy():
     try:
         import numpy as np
 
-        if gold_predictor is None:
+        if vn_gold_predictor is None:
             return {
                 "success": False,
                 "message": "Model not loaded"
             }
 
         # Get historical data
-        if not hasattr(gold_predictor, 'merged_data') or gold_predictor.merged_data is None:
+        if not hasattr(vn_gold_predictor, 'merged_data') or vn_gold_predictor.merged_data is None:
              return {
                 "success": False,
                 "message": "No data available"
             }
 
-        df = gold_predictor.merged_data.copy()
+        df = vn_gold_predictor.merged_data.copy()
 
         if len(df) < 8:
             return {
@@ -1600,15 +1600,15 @@ async def get_gold_accuracy():
         # Make prediction from 7 days ago for today (day 7 prediction)
         try:
             # Use transfer model for day 7
-            if 7 in gold_predictor.transfer_models:
-                feature_cols = [col for col in gold_predictor.transfer_models[7].feature_names_in_]
+            if 7 in vn_gold_predictor.transfer_models:
+                feature_cols = [col for col in vn_gold_predictor.transfer_models[7].feature_names_in_]
                 latest_features = data_7_days_ago[feature_cols].iloc[-1:].values
-                predicted_price_for_today = float(gold_predictor.transfer_models[7].predict(latest_features)[0])
+                predicted_price_for_today = float(vn_gold_predictor.transfer_models[7].predict(latest_features)[0])
             else:
                 # Fallback to model 1 if day 7 doesn't exist
-                feature_cols = [col for col in gold_predictor.transfer_models[1].feature_names_in_]
+                feature_cols = [col for col in vn_gold_predictor.transfer_models[1].feature_names_in_]
                 latest_features = data_7_days_ago[feature_cols].iloc[-1:].values
-                predicted_price_for_today = float(gold_predictor.transfer_models[1].predict(latest_features)[0])
+                predicted_price_for_today = float(vn_gold_predictor.transfer_models[1].predict(latest_features)[0])
         except Exception as e:
             # Fallback: use last known price from 7 days ago
             predicted_price_for_today = float(data_7_days_ago['buy_price_vn'].iloc[-1])
