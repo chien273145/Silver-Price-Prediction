@@ -584,6 +584,17 @@ async def predict(
                 'total_change_pct': float((summary_prices[-1] - last_price) / last_price * 100)
             }
             
+            # Correct last_known to be CURRENT time since we have live data
+            # Use current date as last known date
+            current_price_usd = float(market_data['silver_close'])
+            current_price_vnd = predictor._convert_to_vnd_single(current_price_usd) if (currency.upper() == "VND") else current_price_usd
+            
+            result['last_known'] = {
+                'date': datetime.now().strftime('%Y-%m-%d'),
+                'price': current_price_vnd,
+                'price_usd': current_price_usd
+            }
+
             # Add Live Metadata
             result['is_live_prediction'] = True
             result['live_market_data'] = market_data
