@@ -265,42 +265,40 @@ function updatePerformanceDisplay(performance) {
     const performanceHTML = `
         <div class="performance-grid">
             <div class="perf-item">
-                <div class="perf-label">📅 Date</div>
+                <div class="perf-label">📅 Ngày</div>
                 <div class="perf-value">${date}</div>
             </div>
             <div class="perf-item">
-                <div class="perf-label">🎯 Forecast</div>
+                <div class="perf-label">🎯 Dự Báo</div>
                 <div class="perf-value">${state.currency === 'VND' ?
             new Intl.NumberFormat('vi-VN').format(forecast.vnd) + ' VND' :
             '$' + forecast.usd}</div>
             </div>
             <div class="perf-item">
-                <div class="perf-label">📊 Actual</div>
+                <div class="perf-label">📊 Thực Tế</div>
                 <div class="perf-value">${state.currency === 'VND' ?
             new Intl.NumberFormat('vi-VN').format(actual.vnd) + ' VND' :
             '$' + actual.usd}</div>
             </div>
             <div class="perf-item">
-                <div class="perf-label">📈 Difference</div>
+                <div class="perf-label">📈 Chênh Lệch</div>
                 <div class="perf-value ${difference.percentage > 0 ? 'positive' : 'negative'}">
                     ${difference.percentage > 0 ? '+' : ''}${difference.percentage}%
                 </div>
             </div>
             <div class="perf-item highlight">
-                <div class="perf-label">✅ Accuracy</div>
+                <div class="perf-label">✅ Độ Chính Xác</div>
                 <div class="perf-value" style="color: ${accuracy.grade_color}">
                     ${accuracy.overall}% (${accuracy.grade})
                 </div>
             </div>
             <div class="perf-item">
-                <div class="perf-label">💪 Confidence</div>
-                <div class="perf-value">${model_confidence}</div>
+                <div class="perf-label">💪 Độ Tin Cậy</div>
+                <div class="perf-value">${model_confidence === 'High' ? 'Cao' : 'Trung bình'}</div>
             </div>
         </div>
         <div class="performance-comment">
             <strong>${accuracy.comment}</strong>
-            ${accuracy.direction_correct !== null ?
-            `| Direction: ${accuracy.direction_correct ? '✅ Correct' : '❌ Wrong'}` : ''}
         </div>
     `;
 

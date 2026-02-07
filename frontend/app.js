@@ -172,42 +172,40 @@ async function fetchPerformanceTransparency() {
             const performanceHTML = `
                 <div class="performance-grid">
                     <div class="perf-item">
-                        <div class="perf-label">📅 Date</div>
+                        <div class="perf-label">📅 Ngày</div>
                         <div class="perf-value">${p.date}</div>
                     </div>
                     <div class="perf-item">
-                        <div class="perf-label">🎯 Forecast</div>
+                        <div class="perf-label">🎯 Dự Báo</div>
                         <div class="perf-value">${state.currency === 'VND' ?
                             new Intl.NumberFormat('vi-VN').format(p.forecast.vnd) + ' VND' :
                             '$' + p.forecast.usd}</div>
                     </div>
                     <div class="perf-item">
-                        <div class="perf-label">📊 Actual</div>
+                        <div class="perf-label">📊 Thực Tế</div>
                         <div class="perf-value">${state.currency === 'VND' ?
                             new Intl.NumberFormat('vi-VN').format(p.actual.vnd) + ' VND' :
                             '$' + p.actual.usd}</div>
                     </div>
                     <div class="perf-item">
-                        <div class="perf-label">📈 Difference</div>
+                        <div class="perf-label">📈 Chênh Lệch</div>
                         <div class="perf-value ${p.difference.percentage > 0 ? 'positive' : 'negative'}">
                             ${p.difference.percentage > 0 ? '+' : ''}${p.difference.percentage}%
                         </div>
                     </div>
                     <div class="perf-item highlight">
-                        <div class="perf-label">✅ Accuracy</div>
+                        <div class="perf-label">✅ Độ Chính Xác</div>
                         <div class="perf-value" style="color: ${p.accuracy.grade_color}">
                             ${p.accuracy.overall}% (${p.accuracy.grade})
                         </div>
                     </div>
                     <div class="perf-item">
-                        <div class="perf-label">💪 Confidence</div>
-                        <div class="perf-value">${p.model_confidence}</div>
+                        <div class="perf-label">💪 Độ Tin Cậy</div>
+                        <div class="perf-value">${p.model_confidence === 'High' ? 'Cao' : 'Trung bình'}</div>
                     </div>
                 </div>
                 <div class="performance-comment">
                     <strong>${p.accuracy.comment}</strong>
-                    ${p.accuracy.direction_correct !== null ?
-                        `| Direction: ${p.accuracy.direction_correct ? '✅ Correct' : '❌ Wrong'}` : ''}
                 </div>
             `;
             accuracyContent.innerHTML = performanceHTML;
