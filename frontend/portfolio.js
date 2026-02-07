@@ -234,13 +234,68 @@ function showAddTransaction() {
     document.getElementById('txDate').valueAsDate = new Date();
 }
 
+// Brand Options Logic
+const brandSelect = document.getElementById('txBrand');
+const assetRadios = document.getElementsByName('txAsset');
+
+const brandOptions = {
+    gold: [
+        { value: 'SJC', text: 'SJC' },
+        { value: 'DOJI', text: 'DOJI' },
+        { value: 'WORLD', text: 'Thế Giới (USD)' },
+        { value: 'BTMC', text: 'Bảo Tín Minh Châu' },
+        { value: 'BTMH', text: 'Bảo Tín Mạnh Hải' },
+        { value: 'PHUQUY', text: 'Phú Quý' }
+    ],
+    silver: [
+        { value: 'BTMC', text: 'Bảo Tín Minh Châu' },
+        { value: 'PHUQUY', text: 'Phú Quý' },
+        { value: 'KNP', text: 'Kim Ngân Phúc' }
+    ]
+};
+
+function updateBrandOptions() {
+    if (!brandSelect) return;
+
+    // Get selected asset
+    let selectedAsset = 'gold';
+    for (const radio of assetRadios) {
+        if (radio.checked) {
+            selectedAsset = radio.value;
+            break;
+        }
+    }
+
+    // Clear existing options
+    brandSelect.innerHTML = '';
+
+    // Add new options
+    const options = brandOptions[selectedAsset] || brandOptions.gold;
+    options.forEach(opt => {
+        const option = document.createElement('option');
+        option.value = opt.value;
+        option.textContent = opt.text;
+        brandSelect.appendChild(option);
+    });
+}
+
 // Event Listeners
 document.addEventListener('DOMContentLoaded', () => {
     // Initial Render
     updatePortfolioUI();
 
+    // Initialize brand options
+    updateBrandOptions();
+
     // Listen for updates
     document.addEventListener('portfolioUpdated', updatePortfolioUI);
+
+    // Listen for asset change
+    if (assetRadios) {
+        for (const radio of assetRadios) {
+            radio.addEventListener('change', updateBrandOptions);
+        }
+    }
 
     // Form Submit
     const form = document.getElementById('addTxForm');
@@ -250,6 +305,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const asset = form.txAsset.value;
             const brand = document.getElementById('txBrand').value;
+            // ... (rest of the submit handler is unchanged, just ensuring context)
             const date = document.getElementById('txDate').value;
             const amount = parseFloat(document.getElementById('txAmount').value);
             const price = parseFloat(document.getElementById('txPrice').value);
@@ -265,6 +321,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             closeModal('addTxModal');
             form.reset();
+            // Reset brands to default (Gold) after reset if needed, or keep current
+            // Since reset() might reset radio to default (Gold), we should update options
+            setTimeout(updateBrandOptions, 0);
             alert('Đã thêm giao dịch thành công!');
         });
     }
