@@ -328,6 +328,11 @@ function updateMarketFactorsDisplay(marketDrivers) {
     const marketFactorsEl = document.getElementById('marketFactors');
     if (!marketFactorsEl) return;
 
+    if (!marketDrivers ||
+        (!marketDrivers.ai_explanation && (!marketDrivers.factors || marketDrivers.factors.length === 0))) {
+        return;
+    }
+
     const aiExplanation = marketDrivers.ai_explanation;
     let factorsHTML = '';
 

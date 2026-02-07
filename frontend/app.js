@@ -294,6 +294,12 @@ function updateMarketFactorsDisplay(marketDrivers) {
     const marketFactorsEl = document.getElementById('marketFactors');
     if (!marketFactorsEl) return;
 
+    // Keep static content if no valid data
+    if (!marketDrivers ||
+        (!marketDrivers.ai_explanation && (!marketDrivers.factors || marketDrivers.factors.length === 0))) {
+        return;
+    }
+
     // Get AI explanation if available
     const aiExplanation = marketDrivers.ai_explanation;
 
