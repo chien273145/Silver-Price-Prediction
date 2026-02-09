@@ -54,6 +54,8 @@ class GoldPredictor:
 
         # Ensemble
         self.xgb_models = None
+        self.xgb_scaler = None
+        self.xgb_feature_columns = []
         self.ensemble_weights = {'ridge': 0.4, 'xgboost': 0.6}
         self.use_ensemble = XGBOOST_AVAILABLE
 
@@ -154,7 +156,23 @@ class GoldPredictor:
         
         self.feature_columns = [col for col in extended_features if col in self.data.columns]
         print(f"Selected {len(self.feature_columns)} extended features (incl. VIX, DXY, Oil, US10Y)")
-        
+
+        # XGBoost stationary features (exclude raw prices & non-stationary)
+        _xgb_exclude = {
+            'gold_open', 'gold_high', 'gold_low', 'gold_close', 'silver_close',
+            'gold_lag1', 'gold_lag2', 'gold_lag3', 'gold_lag5', 'gold_lag7',
+            'gold_lag10', 'gold_lag14', 'gold_lag21', 'gold_lag30', 'gold_lag60', 'gold_lag90',
+            'gold_ma7', 'gold_ma14', 'gold_ma30', 'gold_ma60',
+            'gold_ema7', 'gold_ema14', 'gold_ema30',
+            'dxy', 'vix', 'oil', 'us10y',
+            'dxy_ma7', 'dxy_ma30', 'vix_ma7', 'vix_ma30',
+            'oil_ma7', 'oil_ma30', 'us10y_ma7', 'us10y_ma30',
+            'momentum_3', 'momentum_7', 'momentum_14', 'momentum_30',
+            'rolling_min_7', 'rolling_max_7', 'year',
+        }
+        self.xgb_feature_columns = [f for f in self.feature_columns if f not in _xgb_exclude]
+        print(f"  XGBoost stationary features: {len(self.xgb_feature_columns)}/{len(self.feature_columns)}")
+
         # Handle missing values
         self.data[self.feature_columns] = self.data[self.feature_columns].ffill().fillna(0)
         
@@ -163,9 +181,12 @@ class GoldPredictor:
         print(f"Training Ridge+XGBoost ensemble (alpha={alpha})...")
 
         # Prepare data
+        # Ridge features (all)
         X = self.data[self.feature_columns].values
+        # XGBoost features (stationary only)
+        X_xgb_raw = self.data[self.xgb_feature_columns].values if self.xgb_feature_columns else X
 
-        # Create targets for each prediction day
+        # Create absolute price targets for Ridge
         targets = {}
         for day in range(1, self.prediction_days + 1):
             target_col = f'target_day_{day}'
@@ -175,15 +196,23 @@ class GoldPredictor:
         # Remove rows with NaN targets
         valid_mask = ~np.isnan(targets[self.prediction_days])
         X = X[valid_mask]
+        X_xgb_raw = X_xgb_raw[valid_mask]
         for day in targets:
             targets[day] = targets[day][valid_mask]
 
-        # Scale features
+        # Create RETURN targets for XGBoost
+        base_prices = self.data['price'].values[valid_mask]
+        xgb_targets = {}
+        for day in range(1, self.prediction_days + 1):
+            xgb_targets[day] = (targets[day] - base_prices) / (base_prices + 1e-10)
+
+        # Scale Ridge features
         self.scaler = StandardScaler()
         X_scaled = self.scaler.fit_transform(X)
 
-        # Save pre-PCA for XGBoost
-        X_scaled_for_xgb = X_scaled.copy()
+        # Scale XGBoost features (separate scaler)
+        self.xgb_scaler = StandardScaler()
+        X_xgb_scaled = self.xgb_scaler.fit_transform(X_xgb_raw)
 
         # Apply PCA (for Ridge only)
         if use_pca:
@@ -196,16 +225,16 @@ class GoldPredictor:
         # Split once (same indices for both)
         split_idx = int(len(X_for_ridge) * (1 - test_size))
         X_train_r, X_test_r = X_for_ridge[:split_idx], X_for_ridge[split_idx:]
-        X_train_xgb, X_test_xgb = X_scaled_for_xgb[:split_idx], X_scaled_for_xgb[split_idx:]
+        X_train_xgb, X_test_xgb = X_xgb_scaled[:split_idx], X_xgb_scaled[split_idx:]
+        base_prices_test = base_prices[split_idx:]
 
         # Train models
         self.models = {}
         self.xgb_models = {}
         self.metrics = {'r2': {}, 'mape': {}}
 
-        # Collect per-day test predictions for weight optimization
         all_ridge_preds = {}
-        all_xgb_preds = {}
+        all_xgb_preds = {}  # Stored as PRICES (converted from returns)
         all_y_tests = {}
 
         for day in range(1, self.prediction_days + 1):
@@ -213,15 +242,18 @@ class GoldPredictor:
             y_train, y_test = y[:split_idx], y[split_idx:]
             all_y_tests[day] = y_test
 
-            # Ridge
+            # Ridge: predict absolute price
             model = Ridge(alpha=alpha)
             model.fit(X_train_r, y_train)
             y_pred_r = model.predict(X_test_r)
             self.models[day] = model
             all_ridge_preds[day] = y_pred_r
 
-            # XGBoost (with early stopping)
+            # XGBoost: stationary features → predict returns
             if self.use_ensemble:
+                y_xgb = xgb_targets[day]
+                y_xgb_train, y_xgb_test = y_xgb[:split_idx], y_xgb[split_idx:]
+
                 xgb_model = XGBRegressor(
                     n_estimators=500, max_depth=4, learning_rate=0.05,
                     subsample=0.8, colsample_bytree=0.8,
@@ -229,13 +261,17 @@ class GoldPredictor:
                     random_state=42, n_jobs=1, tree_method='hist', verbosity=0,
                     early_stopping_rounds=20
                 )
-                xgb_model.fit(X_train_xgb, y_train, eval_set=[(X_test_xgb, y_test)], verbose=False)
-                y_pred_x = xgb_model.predict(X_test_xgb)
+                xgb_model.fit(X_train_xgb, y_xgb_train,
+                              eval_set=[(X_test_xgb, y_xgb_test)], verbose=False)
                 self.xgb_models[day] = xgb_model
-                all_xgb_preds[day] = y_pred_x
+
+                # Convert XGBoost return predictions → absolute prices
+                xgb_return_pred = xgb_model.predict(X_test_xgb)
+                xgb_price_pred = base_prices_test * (1 + xgb_return_pred)
+                all_xgb_preds[day] = xgb_price_pred
 
                 ridge_mape = np.mean(np.abs((y_test - y_pred_r) / y_test)) * 100
-                xgb_mape = np.mean(np.abs((y_test - y_pred_x) / y_test)) * 100
+                xgb_mape = np.mean(np.abs((y_test - xgb_price_pred) / y_test)) * 100
                 print(f"  Day {day}: Ridge MAPE={ridge_mape:.2f}%, XGB MAPE={xgb_mape:.2f}%")
             else:
                 mape = np.mean(np.abs((y_test - y_pred_r) / y_test)) * 100
@@ -288,11 +324,13 @@ class GoldPredictor:
             'xgb_models': self.xgb_models if self.use_ensemble else None,
             'ensemble_weights': self.ensemble_weights,
             'scaler': self.scaler,
+            'xgb_scaler': self.xgb_scaler,
             'pca': self.pca,
             'feature_columns': self.feature_columns,
+            'xgb_feature_columns': self.xgb_feature_columns,
             'metrics': self.metrics,
             'prediction_days': self.prediction_days,
-            'model_version': 2
+            'model_version': 3 if self.xgb_models else 1
         }
         
         path = os.path.join(self.model_dir, 'gold_ridge_models.pkl')
@@ -314,13 +352,16 @@ class GoldPredictor:
         self.metrics = model_data.get('metrics', {})
         self.prediction_days = model_data.get('prediction_days', 7)
 
-        # Load XGBoost (backward compatible)
+        # Load XGBoost ensemble (backward compatible with v1/v2)
         self.xgb_models = model_data.get('xgb_models', None)
         self.ensemble_weights = model_data.get('ensemble_weights', {'ridge': 0.4, 'xgboost': 0.6})
+        self.xgb_feature_columns = model_data.get('xgb_feature_columns', self.feature_columns)
+        self.xgb_scaler = model_data.get('xgb_scaler', self.scaler)
         self.use_ensemble = bool(self.xgb_models and XGBOOST_AVAILABLE)
 
+        version = model_data.get('model_version', 1)
         mode = "Ridge+XGBoost" if self.use_ensemble else "Ridge-only"
-        print(f"Loaded gold model ({mode}, {len(self.models)} day predictions)")
+        print(f"Loaded gold model (v{version}, {mode}, {len(self.models)} day predictions)")
         
     def predict(self, in_vnd: bool = True) -> Dict:
         """Make predictions for the next 7 days."""
@@ -330,11 +371,11 @@ class GoldPredictor:
             raise ValueError("Data not loaded. Call load_data() first.")
         
         # Get latest data point
-        # Prepare features
         latest = self.data.iloc[-1]
+        last_price_usd = latest['price']
+
+        # Ridge features (all → scale → PCA)
         latest_features = latest[self.feature_columns].values.reshape(1, -1)
-        
-        # Scale
         if self.scaler:
             scaled_full = self.scaler.transform(latest_features)
             scaled_for_ridge = self.pca.transform(scaled_full) if self.pca else scaled_full
@@ -342,12 +383,17 @@ class GoldPredictor:
             scaled_full = latest_features
             scaled_for_ridge = latest_features
 
+        # XGBoost features (stationary → separate scaler)
+        latest_xgb = self.data[self.xgb_feature_columns].iloc[-1:].values
+        latest_xgb_scaled = self.xgb_scaler.transform(latest_xgb) if self.xgb_scaler else latest_xgb
+
         # Predict (Result is USD/oz)
         predictions_usd_raw = []
         for day in range(1, self.prediction_days + 1):
             ridge_pred = self.models[day].predict(scaled_for_ridge)[0]
             if self.use_ensemble and self.xgb_models and day in self.xgb_models:
-                xgb_pred = self.xgb_models[day].predict(scaled_full)[0]
+                xgb_return = self.xgb_models[day].predict(latest_xgb_scaled)[0]
+                xgb_pred = last_price_usd * (1 + xgb_return)
                 w_r = self.ensemble_weights['ridge']
                 w_x = self.ensemble_weights['xgboost']
                 pred = w_r * ridge_pred + w_x * xgb_pred
@@ -630,10 +676,8 @@ class GoldPredictor:
         if self.data is None or len(self.data) < 10:
             return None
             
-        # Features at t-1
+        # Ridge features at t-1
         features_yesterday = self.data[self.feature_columns].iloc[-2].values.reshape(1, -1)
-
-        # Scale & PCA
         if self.scaler:
             feat_full = self.scaler.transform(features_yesterday)
             feat_for_ridge = self.pca.transform(feat_full) if self.pca else feat_full
@@ -644,7 +688,12 @@ class GoldPredictor:
         # Predict Day 1 with ensemble
         ridge_pred = self.models[1].predict(feat_for_ridge)[0]
         if self.use_ensemble and self.xgb_models and 1 in self.xgb_models:
-            xgb_pred = self.xgb_models[1].predict(feat_full)[0]
+            # XGBoost: separate stationary features → predict return → convert to price
+            xgb_features = self.data[self.xgb_feature_columns].iloc[-2:-1].values
+            xgb_scaled = self.xgb_scaler.transform(xgb_features)
+            xgb_return = self.xgb_models[1].predict(xgb_scaled)[0]
+            base_price = self.data['price'].iloc[-2]
+            xgb_pred = base_price * (1 + xgb_return)
             w_r = self.ensemble_weights['ridge']
             w_x = self.ensemble_weights['xgboost']
             pred_usd = w_r * ridge_pred + w_x * xgb_pred

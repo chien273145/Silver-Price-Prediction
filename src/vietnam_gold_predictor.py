@@ -751,11 +751,16 @@ class VietnamGoldPredictor:
                 
             features_t_minus_1 = self.merged_data[self.feature_columns].iloc[idx_t_minus_1:idx_t_minus_1+1].values
             features_scaled = self.scaler.transform(features_t_minus_1)
-            
+
             # Predict for Day 1 (ensemble if available)
             ridge_pred = self.transfer_models[1].predict(features_scaled)[0]
             if self.use_ensemble and self.xgb_models and 1 in self.xgb_models:
-                xgb_pred = self.xgb_models[1].predict(features_scaled)[0]
+                # XGBoost: separate stationary features → predict return → convert to price
+                xgb_features = self.merged_data[self.xgb_feature_columns].iloc[idx_t_minus_1:idx_t_minus_1+1].values
+                xgb_scaled = self.xgb_scaler.transform(xgb_features)
+                xgb_return = self.xgb_models[1].predict(xgb_scaled)[0]
+                base_price = self.merged_data['mid_price'].iloc[idx_t_minus_1]
+                xgb_pred = base_price * (1 + xgb_return)
                 w_r = self.ensemble_weights['ridge']
                 w_x = self.ensemble_weights['xgboost']
                 pred_price = w_r * ridge_pred + w_x * xgb_pred
