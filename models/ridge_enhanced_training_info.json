@@ -1,17 +1,17 @@
 {
   "model_type": "ridge_enhanced",
-  "trained_at": "2026-02-01T02:24:02.439280",
+  "trained_at": "2026-02-09T14:40:58.141377",
   "features_count": 145,
-  "data_points": 4107,
+  "data_points": 4111,
   "external_features": [
     "Gold",
     "DXY",
     "VIX"
   ],
   "metrics": {
-    "r2_score": 0.96491025229942,
-    "rmse": 2.4809196388663173,
-    "mae": 1.242913178908467,
-    "mape": 3.2665046093133645
+    "r2_score": 0.9617253122103442,
+    "rmse": 2.6933599669285666,
+    "mae": 1.303264520321752,
+    "mape": 3.3040358125280958
   }
 }

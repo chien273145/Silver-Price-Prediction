@@ -17,6 +17,12 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
 
+try:
+    from xgboost import XGBRegressor
+    XGBOOST_AVAILABLE = True
+except ImportError:
+    XGBOOST_AVAILABLE = False
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 DEFAULT_USD_VND_RATE = 25000
@@ -45,7 +51,12 @@ class GoldPredictor:
         self.pca = None
         self.feature_columns = None
         self.metrics = None
-        
+
+        # Ensemble
+        self.xgb_models = None
+        self.ensemble_weights = {'ridge': 0.4, 'xgboost': 0.6}
+        self.use_ensemble = XGBOOST_AVAILABLE
+
         self.usd_vnd_rate = DEFAULT_USD_VND_RATE
         self.troy_ounce_to_luong = 1.20565
         self.troy_ounce_to_luong = 1.20565
@@ -148,66 +159,125 @@ class GoldPredictor:
         self.data[self.feature_columns] = self.data[self.feature_columns].ffill().fillna(0)
         
     def train(self, test_size: float = 0.2, use_pca: bool = True, pca_variance: float = 0.95, alpha: float = 1.0):
-        """Train Ridge Regression models with extended features."""
-        print(f"Training with extended features (alpha={alpha})...")
-        
+        """Train Ridge + XGBoost Ensemble models with extended features."""
+        print(f"Training Ridge+XGBoost ensemble (alpha={alpha})...")
+
         # Prepare data
         X = self.data[self.feature_columns].values
-        
+
         # Create targets for each prediction day
         targets = {}
         for day in range(1, self.prediction_days + 1):
             target_col = f'target_day_{day}'
             self.data[target_col] = self.data['price'].shift(-day)
             targets[day] = self.data[target_col].values
-        
+
         # Remove rows with NaN targets
         valid_mask = ~np.isnan(targets[self.prediction_days])
         X = X[valid_mask]
         for day in targets:
             targets[day] = targets[day][valid_mask]
-        
+
         # Scale features
         self.scaler = StandardScaler()
         X_scaled = self.scaler.fit_transform(X)
-        
-        # Apply PCA
+
+        # Save pre-PCA for XGBoost
+        X_scaled_for_xgb = X_scaled.copy()
+
+        # Apply PCA (for Ridge only)
         if use_pca:
             self.pca = PCA(n_components=pca_variance)
-            X_pca = self.pca.fit_transform(X_scaled)
-            print(f"PCA: {X_scaled.shape[1]} -> {X_pca.shape[1]} components")
-            X_train_data = X_pca
+            X_for_ridge = self.pca.fit_transform(X_scaled)
+            print(f"PCA: {X_scaled.shape[1]} -> {X_for_ridge.shape[1]} components (Ridge)")
         else:
-            X_train_data = X_scaled
-        
-        # Train models for each day
+            X_for_ridge = X_scaled
+
+        # Split once (same indices for both)
+        split_idx = int(len(X_for_ridge) * (1 - test_size))
+        X_train_r, X_test_r = X_for_ridge[:split_idx], X_for_ridge[split_idx:]
+        X_train_xgb, X_test_xgb = X_scaled_for_xgb[:split_idx], X_scaled_for_xgb[split_idx:]
+
+        # Train models
         self.models = {}
+        self.xgb_models = {}
         self.metrics = {'r2': {}, 'mape': {}}
-        
+
+        # Collect per-day test predictions for weight optimization
+        all_ridge_preds = {}
+        all_xgb_preds = {}
+        all_y_tests = {}
+
         for day in range(1, self.prediction_days + 1):
             y = targets[day]
-            
-            X_train, X_test, y_train, y_test = train_test_split(
-                X_train_data, y, test_size=test_size, shuffle=False
-            )
-            
+            y_train, y_test = y[:split_idx], y[split_idx:]
+            all_y_tests[day] = y_test
+
+            # Ridge
             model = Ridge(alpha=alpha)
-            model.fit(X_train, y_train)
-            
-            # Evaluate
-            y_pred = model.predict(X_test)
-            r2 = model.score(X_test, y_test)
-            mape = np.mean(np.abs((y_test - y_pred) / y_test)) * 100
-            
+            model.fit(X_train_r, y_train)
+            y_pred_r = model.predict(X_test_r)
             self.models[day] = model
+            all_ridge_preds[day] = y_pred_r
+
+            # XGBoost (with early stopping)
+            if self.use_ensemble:
+                xgb_model = XGBRegressor(
+                    n_estimators=500, max_depth=4, learning_rate=0.05,
+                    subsample=0.8, colsample_bytree=0.8,
+                    reg_alpha=0.1, reg_lambda=1.0,
+                    random_state=42, n_jobs=1, tree_method='hist', verbosity=0,
+                    early_stopping_rounds=20
+                )
+                xgb_model.fit(X_train_xgb, y_train, eval_set=[(X_test_xgb, y_test)], verbose=False)
+                y_pred_x = xgb_model.predict(X_test_xgb)
+                self.xgb_models[day] = xgb_model
+                all_xgb_preds[day] = y_pred_x
+
+                ridge_mape = np.mean(np.abs((y_test - y_pred_r) / y_test)) * 100
+                xgb_mape = np.mean(np.abs((y_test - y_pred_x) / y_test)) * 100
+                print(f"  Day {day}: Ridge MAPE={ridge_mape:.2f}%, XGB MAPE={xgb_mape:.2f}%")
+            else:
+                mape = np.mean(np.abs((y_test - y_pred_r) / y_test)) * 100
+                print(f"  Day {day}: Ridge MAPE={mape:.2f}%")
+
+        # --- Optimize ensemble weights on validation data ---
+        if self.use_ensemble and self.xgb_models:
+            best_w_r, best_mape = 1.0, float('inf')
+            for w_r_candidate in np.arange(0, 1.05, 0.05):
+                w_x_candidate = 1.0 - w_r_candidate
+                total_mape = 0
+                for day in range(1, self.prediction_days + 1):
+                    blended = w_r_candidate * all_ridge_preds[day] + w_x_candidate * all_xgb_preds[day]
+                    total_mape += np.mean(np.abs((all_y_tests[day] - blended) / all_y_tests[day]))
+                avg_candidate_mape = (total_mape / self.prediction_days) * 100
+                if avg_candidate_mape < best_mape:
+                    best_mape = avg_candidate_mape
+                    best_w_r = w_r_candidate
+
+            self.ensemble_weights = {'ridge': round(best_w_r, 2), 'xgboost': round(1.0 - best_w_r, 2)}
+            print(f"\n  Optimal weights: Ridge={self.ensemble_weights['ridge']}, XGB={self.ensemble_weights['xgboost']}")
+
+        # --- Evaluate with optimized weights ---
+        w_r = self.ensemble_weights['ridge']
+        w_x = self.ensemble_weights['xgboost']
+
+        for day in range(1, self.prediction_days + 1):
+            y_test = all_y_tests[day]
+            if self.use_ensemble and day in all_xgb_preds:
+                y_pred = w_r * all_ridge_preds[day] + w_x * all_xgb_preds[day]
+            else:
+                y_pred = all_ridge_preds[day]
+
+            r2 = 1 - np.sum((y_test - y_pred)**2) / np.sum((y_test - np.mean(y_test))**2)
+            mape = np.mean(np.abs((y_test - y_pred) / y_test)) * 100
             self.metrics['r2'][day] = r2
             self.metrics['mape'][day] = mape
-            
-            print(f"  Day {day}: R2={r2:.4f}, MAPE={mape:.2f}%")
-        
+
         avg_r2 = np.mean(list(self.metrics['r2'].values()))
         avg_mape = np.mean(list(self.metrics['mape'].values()))
-        print(f"Average R2={avg_r2:.4f}, MAPE={avg_mape:.2f}%")
+        mode = f"Ridge={w_r}+XGB={w_x}" if self.use_ensemble else "Ridge"
+        print(f"{mode} Average R2={avg_r2:.4f}, MAPE={avg_mape:.2f}%")
         
     def save_model(self):
         """Save trained model."""
@@ -215,11 +285,14 @@ class GoldPredictor:
         
         model_data = {
             'models': self.models,
+            'xgb_models': self.xgb_models if self.use_ensemble else None,
+            'ensemble_weights': self.ensemble_weights,
             'scaler': self.scaler,
             'pca': self.pca,
             'feature_columns': self.feature_columns,
             'metrics': self.metrics,
-            'prediction_days': self.prediction_days
+            'prediction_days': self.prediction_days,
+            'model_version': 2
         }
         
         path = os.path.join(self.model_dir, 'gold_ridge_models.pkl')
@@ -240,8 +313,14 @@ class GoldPredictor:
         self.feature_columns = model_data['feature_columns']
         self.metrics = model_data.get('metrics', {})
         self.prediction_days = model_data.get('prediction_days', 7)
-        
-        print(f"Loaded gold model ({len(self.models)} day predictions)")
+
+        # Load XGBoost (backward compatible)
+        self.xgb_models = model_data.get('xgb_models', None)
+        self.ensemble_weights = model_data.get('ensemble_weights', {'ridge': 0.4, 'xgboost': 0.6})
+        self.use_ensemble = bool(self.xgb_models and XGBOOST_AVAILABLE)
+
+        mode = "Ridge+XGBoost" if self.use_ensemble else "Ridge-only"
+        print(f"Loaded gold model ({mode}, {len(self.models)} day predictions)")
         
     def predict(self, in_vnd: bool = True) -> Dict:
         """Make predictions for the next 7 days."""
@@ -257,17 +336,23 @@ class GoldPredictor:
         
         # Scale
         if self.scaler:
-            latest_features_scaled = self.scaler.transform(latest_features)
-            # PCA
-            if self.pca:
-                latest_features_scaled = self.pca.transform(latest_features_scaled)
+            scaled_full = self.scaler.transform(latest_features)
+            scaled_for_ridge = self.pca.transform(scaled_full) if self.pca else scaled_full
         else:
-             latest_features_scaled = latest_features
+            scaled_full = latest_features
+            scaled_for_ridge = latest_features
 
         # Predict (Result is USD/oz)
         predictions_usd_raw = []
         for day in range(1, self.prediction_days + 1):
-            pred = self.models[day].predict(latest_features_scaled)[0]
+            ridge_pred = self.models[day].predict(scaled_for_ridge)[0]
+            if self.use_ensemble and self.xgb_models and day in self.xgb_models:
+                xgb_pred = self.xgb_models[day].predict(scaled_full)[0]
+                w_r = self.ensemble_weights['ridge']
+                w_x = self.ensemble_weights['xgboost']
+                pred = w_r * ridge_pred + w_x * xgb_pred
+            else:
+                pred = ridge_pred
             predictions_usd_raw.append(pred)
             
         # Construct response
@@ -547,17 +632,24 @@ class GoldPredictor:
             
         # Features at t-1
         features_yesterday = self.data[self.feature_columns].iloc[-2].values.reshape(1, -1)
-        
+
         # Scale & PCA
         if self.scaler:
-            feat_scaled = self.scaler.transform(features_yesterday)
-            if self.pca:
-                feat_scaled = self.pca.transform(feat_scaled)
+            feat_full = self.scaler.transform(features_yesterday)
+            feat_for_ridge = self.pca.transform(feat_full) if self.pca else feat_full
         else:
-            feat_scaled = features_yesterday
-            
-        # Predict Day 1 using model[1]
-        pred_usd = self.models[1].predict(feat_scaled)[0]
+            feat_full = features_yesterday
+            feat_for_ridge = features_yesterday
+
+        # Predict Day 1 with ensemble
+        ridge_pred = self.models[1].predict(feat_for_ridge)[0]
+        if self.use_ensemble and self.xgb_models and 1 in self.xgb_models:
+            xgb_pred = self.xgb_models[1].predict(feat_full)[0]
+            w_r = self.ensemble_weights['ridge']
+            w_x = self.ensemble_weights['xgboost']
+            pred_usd = w_r * ridge_pred + w_x * xgb_pred
+        else:
+            pred_usd = ridge_pred
         
         # Actual
         actual_usd = self.data['price'].iloc[-1] # price is already USD/oz

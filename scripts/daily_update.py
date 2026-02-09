@@ -100,7 +100,8 @@ def run_retraining():
         
         # 5. Save
         predictor.save_model()
-        print("✅ Vietnam Gold Retraining Complete!")
+        ensemble_mode = "Ridge+XGBoost" if predictor.use_ensemble else "Ridge-only"
+        print(f"✅ Vietnam Gold Retraining Complete! [{ensemble_mode}]")
         print(f"Metrics: {metrics}")
         
         # 6. SILVER Retraining
@@ -116,7 +117,8 @@ def run_retraining():
         silver_predictor.create_features()
         silver_metrics = silver_predictor.train()
         silver_predictor.save_model()
-        print("✅ Silver Retraining Complete!")
+        ensemble_mode = "Ridge+XGBoost" if silver_predictor.use_ensemble else "Ridge-only"
+        print(f"✅ Silver Retraining Complete! [{ensemble_mode}]")
         print(f"Metrics: {silver_metrics}")
 
         # 7. WORLD GOLD Retraining
@@ -131,7 +133,8 @@ def run_retraining():
         gold_predictor.create_features()
         gold_metrics = gold_predictor.train()
         gold_predictor.save_model()
-        print("✅ World Gold Retraining Complete!")
+        ensemble_mode = "Ridge+XGBoost" if gold_predictor.use_ensemble else "Ridge-only"
+        print(f"✅ World Gold Retraining Complete! [{ensemble_mode}]")
         print(f"Metrics: {gold_metrics}")
 
         return True
