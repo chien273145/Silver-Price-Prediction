@@ -26,9 +26,13 @@ class RealTimeDataFetcher:
     """
     
     # Silver symbols
-    SILVER_SYMBOL = "XAGUSD=X"  # Silver Spot (Matching Investing.com data)
-    SILVER_FUTURES = "SI=F"     # Silver Futures (Backup)
+    SILVER_SYMBOL = "SI=F"      # Silver Futures (Primary)
+    SILVER_SPOT = "XAGUSD=X"    # Silver Spot (Backup)
     SILVER_ETF = "SLV"          # iShares Silver Trust (Last resort)
+    
+    # Keeping old variable for compatibility
+    SILVER_FUTURES = "XAGUSD=X" # Now points to SPOT as backup because SI=F is primary
+
     # Additional symbols for model prediction
     GOLD_SYMBOL = "GC=F"       # Gold Futures
     DXY_SYMBOL = "DX-Y.NYB"    # US Dollar Index
@@ -107,6 +111,8 @@ class RealTimeDataFetcher:
         # Fill missing values with individual fetches if needed
         if result['gold_close'] is None:
             result['gold_close'] = self._fetch_single_price(self.GOLD_SYMBOL)
+        if result['silver_close'] is None:
+            result['silver_close'] = self._fetch_single_price(self.SILVER_SYMBOL)
         if result['dxy'] is None:
             result['dxy'] = self._fetch_single_price(self.DXY_SYMBOL)
         if result['oil'] is None:
@@ -162,46 +168,71 @@ class RealTimeDataFetcher:
         
         if HAS_YFINANCE:
             try:
+                # 1. Try Primary (Silver Futures SI=F)
                 ticker = yf.Ticker(self.SILVER_SYMBOL)
-                info = ticker.info
+                # Using history is often more reliable for futures
+                hist = ticker.history(period='1d')
                 
-                # Get current price
-                result['price'] = info.get('regularMarketPrice') or info.get('previousClose')
-                result['previous_close'] = info.get('previousClose')
-                result['high'] = info.get('dayHigh') or info.get('regularMarketDayHigh')
-                result['low'] = info.get('dayLow') or info.get('regularMarketDayLow')
-                result['source'] = 'yahoo_finance'
-                
+                if not hist.empty:
+                    result['price'] = float(hist['Close'].iloc[-1])
+                    if len(hist) > 1:
+                        result['previous_close'] = float(hist['Close'].iloc[-2])
+                    else:
+                        result['previous_close'] = ticker.info.get('previousClose')
+                    
+                    result['high'] = float(hist['High'].iloc[-1])
+                    result['low'] = float(hist['Low'].iloc[-1])
+                    result['source'] = 'yahoo_finance'
+                else:
+                    # Try info fallback
+                    info = ticker.info
+                    result['price'] = info.get('regularMarketPrice') or info.get('previousClose')
+                    result['previous_close'] = info.get('previousClose')
+                    result['high'] = info.get('dayHigh')
+                    result['low'] = info.get('dayLow')
+                    result['source'] = 'yahoo_finance_info'
+
+                # Calculate change if price exists
                 if result['price'] and result['previous_close']:
                     result['change'] = result['price'] - result['previous_close']
                     result['change_percent'] = (result['change'] / result['previous_close']) * 100
                     
+                # If price is valid, return
+                if result['price']:
+                    self._update_cache(cache_key, result)
+                    return result
+
             except Exception as e:
                 result['error'] = str(e)
-                
-                # 1. Try Futures as first backup
-                try:
-                    ticker = yf.Ticker(self.SILVER_FUTURES)
-                    info = ticker.info
-                    price = info.get('regularMarketPrice') or info.get('previousClose')
-                    if price:
-                        result['price'] = price
-                        result['previous_close'] = info.get('previousClose')
-                        result['source'] = 'yahoo_finance_futures'
-                        result['symbol'] = self.SILVER_FUTURES
-                        result['error'] = None
-                except:
-                    # 2. Try ETF as last resort
-                    try:
-                        ticker = yf.Ticker(self.SILVER_ETF)
-                        hist = ticker.history(period='1d')
-                        if not hist.empty:
-                            result['price'] = float(hist['Close'].iloc[-1])
-                            result['source'] = 'yahoo_finance_etf'
-                            result['symbol'] = self.SILVER_ETF
-                            result['error'] = None
-                    except:
-                        pass
+            
+            # 2. Try Backup (Spot XAGUSD=X) if primary failed
+            try:
+                ticker = yf.Ticker(self.SILVER_SPOT)
+                hist = ticker.history(period='1d')
+                if not hist.empty:
+                    result['price'] = float(hist['Close'].iloc[-1])
+                    result['previous_close'] = float(hist['Open'].iloc[0]) # Approximation
+                    result['source'] = 'yahoo_finance_spot_backup'
+                    result['symbol'] = self.SILVER_SPOT
+                    result['error'] = None
+                    
+                    # Update cache and return
+                    self._update_cache(cache_key, result)
+                    return result
+            except:
+                pass
+
+            # 3. Try ETF as last resort
+            try:
+                ticker = yf.Ticker(self.SILVER_ETF)
+                hist = ticker.history(period='1d')
+                if not hist.empty:
+                    result['price'] = float(hist['Close'].iloc[-1])
+                    result['source'] = 'yahoo_finance_etf'
+                    result['symbol'] = self.SILVER_ETF
+                    result['error'] = None
+            except:
+                pass
         
         # Fallback to free API if yfinance fails
         if result['price'] is None:

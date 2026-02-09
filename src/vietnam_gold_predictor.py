@@ -54,7 +54,9 @@ class VietnamGoldPredictor:
         self.transfer_models = {}
         self.xgb_models = None
         self.scaler = None
+        self.xgb_scaler = None
         self.feature_columns = []
+        self.xgb_feature_columns = []
         self.metrics = {'r2': {}, 'mape': {}, 'rmse': {}}
 
         # Ensemble config
@@ -254,6 +256,18 @@ class VietnamGoldPredictor:
                 all_features.append(f)
         
         self.feature_columns = all_features
+
+        # Stationary features for XGBoost (exclude raw prices / price-level features)
+        _xgb_exclude = {
+            'mid_price', 'spread', 'world_price_vnd',
+            'gold_close', 'gold_open', 'gold_high', 'gold_low',
+            'gold_ma7', 'gold_ma14', 'gold_ma30',
+            'vn_lag1', 'vn_lag3', 'vn_lag7', 'vn_lag14', 'vn_lag30',
+            'vn_ma7', 'vn_ma14', 'vn_ma30',
+        }
+        self.xgb_feature_columns = [f for f in all_features if f not in _xgb_exclude]
+        print(f"  XGBoost stationary features: {len(self.xgb_feature_columns)}/{len(all_features)}")
+
         self.merged_data = df
         
         # Handle missing values
@@ -263,16 +277,19 @@ class VietnamGoldPredictor:
         return self.merged_data
     
     def train(self, test_size: float = 0.2, alpha: float = 1.0):
-        """Train transfer learning model (Ridge + XGBoost ensemble) for Vietnam gold prices."""
+        """Train Ridge (absolute price) + XGBoost (returns, stationary features) ensemble."""
         print(f"Training transfer model (alpha={alpha}, ensemble={self.use_ensemble})...")
 
         if self.merged_data is None or len(self.feature_columns) == 0:
             self.create_transfer_features()
 
-        # Prepare data
+        # Prepare Ridge features (all features)
         X = self.merged_data[self.feature_columns].values
 
-        # Create targets for each prediction day
+        # Prepare XGBoost features (stationary only)
+        X_xgb_raw = self.merged_data[self.xgb_feature_columns].values if self.xgb_feature_columns else X
+
+        # Create absolute price targets for Ridge
         targets = {}
         for day in range(1, self.prediction_days + 1):
             target_col = f'target_day_{day}'
@@ -282,25 +299,37 @@ class VietnamGoldPredictor:
         # Remove rows with NaN targets
         valid_mask = ~np.isnan(targets[self.prediction_days])
         X = X[valid_mask]
+        X_xgb_raw = X_xgb_raw[valid_mask]
         for day in targets:
             targets[day] = targets[day][valid_mask]
 
-        # Scale features
+        # Create RETURN targets for XGBoost: (future_price - current_price) / current_price
+        base_prices = self.merged_data['mid_price'].values[valid_mask]
+        xgb_targets = {}
+        for day in range(1, self.prediction_days + 1):
+            xgb_targets[day] = (targets[day] - base_prices) / (base_prices + 1e-10)
+
+        # Scale Ridge features
         self.scaler = StandardScaler()
         X_scaled = self.scaler.fit_transform(X)
 
-        # Split data (manual split to keep same indices for Ridge & XGBoost)
+        # Scale XGBoost features (separate scaler)
+        self.xgb_scaler = StandardScaler()
+        X_xgb_scaled = self.xgb_scaler.fit_transform(X_xgb_raw)
+
+        # Split data
         split_idx = int(len(X_scaled) * (1 - test_size))
         X_train, X_test = X_scaled[:split_idx], X_scaled[split_idx:]
+        X_train_xgb, X_test_xgb = X_xgb_scaled[:split_idx], X_xgb_scaled[split_idx:]
+        base_prices_test = base_prices[split_idx:]
 
-        # Train models for each day
+        # Train models
         self.transfer_models = {}
         self.xgb_models = {} if self.use_ensemble else None
         self.metrics = {'r2': {}, 'mape': {}, 'rmse': {}}
 
-        # Collect per-day test predictions for weight optimization
         all_ridge_preds = {}
-        all_xgb_preds = {}
+        all_xgb_preds = {}  # Stored as PRICES (converted from returns)
         all_y_tests = {}
 
         for day in range(1, self.prediction_days + 1):
@@ -308,15 +337,18 @@ class VietnamGoldPredictor:
             y_train, y_test = y[:split_idx], y[split_idx:]
             all_y_tests[day] = y_test
 
-            # --- Ridge ---
+            # --- Ridge: predict absolute price ---
             ridge_model = Ridge(alpha=alpha)
             ridge_model.fit(X_train, y_train)
             ridge_pred = ridge_model.predict(X_test)
             self.transfer_models[day] = ridge_model
             all_ridge_preds[day] = ridge_pred
 
-            # --- XGBoost (same features, no PCA in this predictor) ---
+            # --- XGBoost: stationary features → predict returns ---
             if self.use_ensemble:
+                y_xgb = xgb_targets[day]
+                y_xgb_train, y_xgb_test = y_xgb[:split_idx], y_xgb[split_idx:]
+
                 xgb_model = XGBRegressor(
                     n_estimators=500, max_depth=4, learning_rate=0.05,
                     subsample=0.8, colsample_bytree=0.8,
@@ -325,19 +357,23 @@ class VietnamGoldPredictor:
                     random_state=42, verbosity=0,
                     early_stopping_rounds=20
                 )
-                xgb_model.fit(X_train, y_train, eval_set=[(X_test, y_test)], verbose=False)
-                xgb_pred = xgb_model.predict(X_test)
+                xgb_model.fit(X_train_xgb, y_xgb_train,
+                              eval_set=[(X_test_xgb, y_xgb_test)], verbose=False)
                 self.xgb_models[day] = xgb_model
-                all_xgb_preds[day] = xgb_pred
+
+                # Convert XGBoost return predictions → absolute prices
+                xgb_return_pred = xgb_model.predict(X_test_xgb)
+                xgb_price_pred = base_prices_test * (1 + xgb_return_pred)
+                all_xgb_preds[day] = xgb_price_pred
 
                 ridge_mape = np.mean(np.abs((y_test - ridge_pred) / y_test)) * 100
-                xgb_mape = np.mean(np.abs((y_test - xgb_pred) / y_test)) * 100
+                xgb_mape = np.mean(np.abs((y_test - xgb_price_pred) / y_test)) * 100
                 print(f"  Day {day}: Ridge MAPE={ridge_mape:.2f}%, XGB MAPE={xgb_mape:.2f}%")
             else:
                 mape = np.mean(np.abs((y_test - ridge_pred) / y_test)) * 100
                 print(f"  Day {day}: Ridge MAPE={mape:.2f}%")
 
-        # --- Optimize ensemble weights on validation data ---
+        # --- Optimize ensemble weights on validation data (in price space) ---
         if self.use_ensemble and self.xgb_models:
             best_w_r, best_mape = 1.0, float('inf')
             for w_r_candidate in np.arange(0, 1.05, 0.05):
@@ -392,16 +428,18 @@ class VietnamGoldPredictor:
             'metrics': self.metrics,
             'usd_vnd_rate': self.usd_vnd_rate,
             'trained_at': datetime.now().isoformat(),
-            # Ensemble fields (v2)
+            # Ensemble fields (v3: stationary features + return targets)
             'xgb_models': self.xgb_models,
             'ensemble_weights': self.ensemble_weights,
-            'model_version': 2 if self.xgb_models else 1
+            'xgb_feature_columns': self.xgb_feature_columns,
+            'xgb_scaler': self.xgb_scaler,
+            'model_version': 3 if self.xgb_models else 1
         }
 
         with open(model_path, 'wb') as f:
             pickle.dump(model_data, f)
 
-        version = "v2 (ensemble)" if self.xgb_models else "v1 (Ridge-only)"
+        version = "v3 (ensemble+returns)" if self.xgb_models else "v1 (Ridge-only)"
         print(f"Model saved to {model_path} [{version}]")
         return model_path
     
@@ -428,9 +466,11 @@ class VietnamGoldPredictor:
         self.metrics = model_data['metrics']
         self.usd_vnd_rate = model_data.get('usd_vnd_rate', DEFAULT_USD_VND_RATE)
 
-        # Load ensemble fields (backward compatible with v1 pkl)
+        # Load ensemble fields (backward compatible with v1/v2 pkl)
         self.xgb_models = model_data.get('xgb_models', None)
         self.ensemble_weights = model_data.get('ensemble_weights', {'ridge': 0.4, 'xgboost': 0.6})
+        self.xgb_feature_columns = model_data.get('xgb_feature_columns', self.feature_columns)
+        self.xgb_scaler = model_data.get('xgb_scaler', self.scaler)
         self.use_ensemble = XGBOOST_AVAILABLE and self.xgb_models is not None
 
         version = model_data.get('model_version', 1)
@@ -487,10 +527,14 @@ class VietnamGoldPredictor:
             # Standardize / Fill features
             df[self.feature_columns] = df[self.feature_columns].ffill().fillna(0)
             
-            # Extract features for inference
+            # Extract Ridge features
             latest = df[self.feature_columns].iloc[-1:].values
             latest_scaled = self.scaler.transform(latest)
-            
+
+            # Extract XGBoost features (stationary, separate scaler)
+            latest_xgb = df[self.xgb_feature_columns].iloc[-1:].values
+            latest_xgb_scaled = self.xgb_scaler.transform(latest_xgb)
+
             # Base for relative changes
             # Force start date to be today for live prediction
             current_date = datetime.now()
@@ -516,12 +560,13 @@ class VietnamGoldPredictor:
                 while current_date.weekday() in [5, 6]:
                     current_date += timedelta(days=1)
 
-                # Ridge prediction
+                # Ridge prediction (absolute price)
                 ridge_pred = self.transfer_models[day].predict(latest_scaled)[0]
 
-                # Ensemble: weighted average of Ridge + XGBoost
+                # XGBoost: stationary features → predict return → convert to price
                 if self.use_ensemble and self.xgb_models and day in self.xgb_models:
-                    xgb_pred = self.xgb_models[day].predict(latest_scaled)[0]
+                    xgb_return = self.xgb_models[day].predict(latest_xgb_scaled)[0]
+                    xgb_pred = last_price * (1 + xgb_return)
                     w_r = self.ensemble_weights['ridge']
                     w_x = self.ensemble_weights['xgboost']
                     pred_price = w_r * ridge_pred + w_x * xgb_pred

@@ -315,6 +315,11 @@ async def blog_savings_vs_gold():
     path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'frontend', 'blog', 'gui-tiet-kiem-hay-mua-vang-so-sanh-roi.html')
     return FileResponse(path)
 
+@app.get("/blog/huong-dan-bat-day-vang-ai-buy-score")
+async def blog_ai_buy_score():
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'frontend', 'blog', 'huong-dan-bat-day-vang-ai-buy-score.html')
+    return FileResponse(path)
+
 
 # ========== DEDICATED PAGE ROUTES ==========
 @app.get("/silver")
@@ -324,10 +329,19 @@ async def silver_page():
     return FileResponse(path)
 
 
+
 @app.get("/gold")
 async def gold_page():
     """Serve the dedicated Gold price prediction page."""
     path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'frontend', 'gold.html')
+    return FileResponse(path)
+
+
+@app.get("/gold-vn.html")
+@app.get("/gold-vn")
+async def gold_vn_page():
+    """Serve the dedicated Vietnam Gold price prediction page."""
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'frontend', 'gold-vn.html')
     return FileResponse(path)
 
 
