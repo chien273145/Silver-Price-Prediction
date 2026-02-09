@@ -606,14 +606,18 @@ class VietnamGoldPredictor:
             self.merge_datasets()
             self.create_transfer_features()
         
-        # Get latest features
+        # Get latest Ridge features
         latest = self.merged_data[self.feature_columns].iloc[-1:].values
         latest_scaled = self.scaler.transform(latest)
-        
+
+        # Get latest XGBoost features (stationary, separate scaler)
+        latest_xgb = self.merged_data[self.xgb_feature_columns].iloc[-1:].values
+        latest_xgb_scaled = self.xgb_scaler.transform(latest_xgb)
+
         # Get last date and price
         last_date = self.merged_data['date'].iloc[-1]
         last_price = self.merged_data['mid_price'].iloc[-1]
-        
+
         # Predict for each day
         predictions = []
         current_date = last_date
@@ -623,12 +627,13 @@ class VietnamGoldPredictor:
             while current_date.weekday() in [5, 6]:
                 current_date += timedelta(days=1)
 
-            # Ridge prediction
+            # Ridge prediction (absolute price)
             ridge_pred = self.transfer_models[day].predict(latest_scaled)[0]
 
-            # Ensemble: weighted average of Ridge + XGBoost
+            # XGBoost: stationary features → predict return → convert to price
             if self.use_ensemble and self.xgb_models and day in self.xgb_models:
-                xgb_pred = self.xgb_models[day].predict(latest_scaled)[0]
+                xgb_return = self.xgb_models[day].predict(latest_xgb_scaled)[0]
+                xgb_pred = last_price * (1 + xgb_return)
                 w_r = self.ensemble_weights['ridge']
                 w_x = self.ensemble_weights['xgboost']
                 pred_price = w_r * ridge_pred + w_x * xgb_pred
