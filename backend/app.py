@@ -337,14 +337,6 @@ async def gold_page():
     return FileResponse(path)
 
 
-@app.get("/gold-vn.html")
-@app.get("/gold-vn")
-async def gold_vn_page():
-    """Serve the dedicated Vietnam Gold price prediction page."""
-    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'frontend', 'gold-vn.html')
-    return FileResponse(path)
-
-
 # ========== VIETNAM GOLD API ENDPOINTS ==========
 @app.get("/api/gold-vn/predict")
 async def predict_vietnam_gold():
