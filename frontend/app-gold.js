@@ -575,7 +575,7 @@ function updatePriceCards() {
 
     // Current price (first prediction as reference)
     animateNumber(elements.currentPrice, firstPred.predicted_price);
-    elements.priceUnit.textContent = unit || 'triệu VND/lượng';
+    elements.priceUnit.textContent = unit || 'VND/lượng';
 
     // Price change from first to last
     const totalChange = lastPred.predicted_price - firstPred.predicted_price;
@@ -706,7 +706,7 @@ function updatePredictionTable() {
                 <td style="font-weight: 600">${pred.predicted_price.toLocaleString('vi-VN')}</td>
                 <td class="${trendClass}">${formatChange(pred.change_percent, true)}</td>
                 <td class="${trendClass}">${trendIcon}</td>
-                <td>triệu VND</td>
+                <td>VND</td>
             </tr>
         `;
     });
