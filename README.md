@@ -59,7 +59,7 @@ Truy cập: http://localhost:8000
 |----------|-------|
 | `/api/predict` | Dự đoán giá bạc 7 ngày |
 | `/api/gold/predict` | Dự đoán giá vàng thế giới 7 ngày |
-| `/api/gold-vn/predict` | Dự đoán giá vàng SJC Việt Nam |
+
 | `/api/historical` | Dữ liệu lịch sử |
 | `/api/prices/local` | Bảng giá vàng trong nước |
 | `/api/market-analysis` | Phân tích thị trường AI |
