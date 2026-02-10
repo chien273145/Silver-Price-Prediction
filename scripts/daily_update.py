@@ -59,8 +59,8 @@ def update_sjc_data():
         # Append new row
         new_row = {
             'date': today_str,
-            'buy_price': target_item.buy_price / 1_000_000, # Convert to Million VND
-            'sell_price': target_item.sell_price / 1_000_000
+            'buy_price': int(target_item.buy_price),  # VND (full)
+            'sell_price': int(target_item.sell_price)
         }
         
         # Calculate derived fields if they exist in CSV (mid_price, etc) handled by loader usually?

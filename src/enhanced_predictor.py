@@ -22,6 +22,17 @@ except ImportError:
     XGBOOST_AVAILABLE = False
     print("[WARNING] XGBoost not installed. Using Ridge-only mode.")
 
+# LSTM ensemble (optional - graceful fallback)
+try:
+    import tensorflow as tf
+    tf.get_logger().setLevel('ERROR')
+    from tensorflow.keras.models import Sequential
+    from tensorflow.keras.layers import LSTM, Dense, Dropout
+    from tensorflow.keras.callbacks import EarlyStopping
+    LSTM_AVAILABLE = True
+except ImportError:
+    LSTM_AVAILABLE = False
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 DEFAULT_USD_VND_RATE = 25000
@@ -57,8 +68,13 @@ class EnhancedPredictor:
         self.xgb_models = None
         self.xgb_scaler = None
         self.xgb_feature_columns = []
-        self.ensemble_weights = {'ridge': 0.4, 'xgboost': 0.6}
+        self.ensemble_weights = {'ridge': 0.3, 'xgboost': 0.4, 'lstm': 0.3}
         self.use_ensemble = XGBOOST_AVAILABLE
+
+        # LSTM config
+        self.lstm_model = None
+        self.lstm_sequence_length = 30
+        self.use_lstm = LSTM_AVAILABLE
 
         self.usd_vnd_rate = DEFAULT_USD_VND_RATE
         self.troy_ounce_to_luong = 1.20565
@@ -415,40 +431,104 @@ class EnhancedPredictor:
                               eval_set=[(X_test_xgb, y_xgb_test)], verbose=False)
                 self.xgb_models.append(xgb_model)
 
-        # === Optimize ensemble weights in PRICE space ===
+        # === Compute test predictions in PRICE space ===
         # Ridge: MinMaxScaled predictions → inverse_transform → prices
         y_pred_ridge_scaled = np.column_stack([m.predict(X_test_r) for m in self.models])
         y_pred_ridge_prices = self.target_scaler.inverse_transform(y_pred_ridge_scaled)
         y_test_prices = self.target_scaler.inverse_transform(y_test)
 
-        if self.use_ensemble and self.xgb_models:
-            # XGBoost: return predictions → convert to prices
+        # XGBoost: return predictions → convert to prices
+        has_xgb = self.use_ensemble and bool(self.xgb_models)
+        xgb_price_preds = None
+        if has_xgb:
             xgb_return_preds = np.column_stack([m.predict(X_test_xgb) for m in self.xgb_models])
             xgb_price_preds = np.zeros_like(xgb_return_preds)
             for day in range(self.prediction_days):
                 xgb_price_preds[:, day] = base_prices_test * (1 + xgb_return_preds[:, day])
 
-            # Per-day MAPE comparison
             for day in range(self.prediction_days):
                 ridge_mape = np.mean(np.abs((y_test_prices[:, day] - y_pred_ridge_prices[:, day]) / y_test_prices[:, day])) * 100
                 xgb_mape = np.mean(np.abs((y_test_prices[:, day] - xgb_price_preds[:, day]) / y_test_prices[:, day])) * 100
                 print(f"  Day {day+1}: Ridge MAPE={ridge_mape:.2f}%, XGB MAPE={xgb_mape:.2f}%")
 
-            # Grid search for optimal weights (minimize MAPE in price space)
-            best_w_r, best_mape = 1.0, float('inf')
-            for w_r_candidate in np.arange(0, 1.05, 0.05):
-                w_x_candidate = 1.0 - w_r_candidate
-                y_blend = w_r_candidate * y_pred_ridge_prices + w_x_candidate * xgb_price_preds
-                candidate_mape = np.mean(np.abs((y_test_prices - y_blend) / (y_test_prices + 1e-10))) * 100
-                if candidate_mape < best_mape:
-                    best_mape = candidate_mape
-                    best_w_r = w_r_candidate
+        # --- LSTM: sequence → predict returns ---
+        has_lstm = False
+        lstm_price_preds = None
+        if self.use_lstm and split_idx > self.lstm_sequence_length + 10:
+            print(f"\n[LSTM] Training LSTM (seq_len={self.lstm_sequence_length})...")
+            seq_len = self.lstm_sequence_length
 
-            self.ensemble_weights = {'ridge': round(best_w_r, 2), 'xgboost': round(1.0 - best_w_r, 2)}
-            w_r = self.ensemble_weights['ridge']
-            w_x = self.ensemble_weights['xgboost']
-            y_pred_prices = w_r * y_pred_ridge_prices + w_x * xgb_price_preds
-            print(f"\n[ENSEMBLE] Optimal weights: Ridge={w_r}, XGBoost={w_x}")
+            # Multi-output return targets (N, 7)
+            y_lstm_all = np.column_stack(xgb_return_targets)
+
+            # Create sequences from X_scaled (full features, not PCA-reduced)
+            def _make_seqs(X_data, start, end):
+                return np.array([X_data[i - seq_len:i] for i in range(start, end)], dtype=np.float32)
+
+            X_seq_train = _make_seqs(X_scaled, seq_len, split_idx)
+            y_seq_train = y_lstm_all[seq_len:split_idx].astype(np.float32)
+            X_seq_test = _make_seqs(X_scaled, split_idx, len(X_scaled))
+            y_seq_test = y_lstm_all[split_idx:].astype(np.float32)
+
+            print(f"    LSTM train: {len(X_seq_train)}, test: {len(X_seq_test)}")
+
+            lstm_model = Sequential([
+                tf.keras.layers.Input(shape=(seq_len, X_scaled.shape[1])),
+                LSTM(32, dropout=0.2),
+                Dense(16, activation='relu'),
+                Dropout(0.1),
+                Dense(self.prediction_days)
+            ])
+            lstm_model.compile(optimizer='adam', loss='mse')
+            lstm_model.fit(
+                X_seq_train, y_seq_train,
+                epochs=100, batch_size=16,
+                validation_data=(X_seq_test, y_seq_test),
+                callbacks=[EarlyStopping(patience=15, restore_best_weights=True)],
+                verbose=0
+            )
+            self.lstm_model = lstm_model
+            has_lstm = True
+
+            lstm_return_preds = lstm_model.predict(X_seq_test, verbose=0)
+            lstm_price_preds = np.zeros_like(lstm_return_preds)
+            for day in range(self.prediction_days):
+                lstm_price_preds[:, day] = base_prices_test * (1 + lstm_return_preds[:, day])
+                lstm_mape = np.mean(np.abs((y_test_prices[:, day] - lstm_price_preds[:, day]) / y_test_prices[:, day])) * 100
+                print(f"    Day {day+1}: LSTM MAPE={lstm_mape:.2f}%")
+
+        # --- Optimize ensemble weights (3D grid: Ridge + XGB + LSTM) ---
+        if has_xgb or has_lstm:
+            best_w, best_mape = (1.0, 0.0, 0.0), float('inf')
+            step = 0.1
+            for w_r in np.arange(0, 1.0 + step / 2, step):
+                for w_x in np.arange(0, 1.0 - w_r + step / 2, step):
+                    w_l = round(1.0 - w_r - w_x, 2)
+                    if w_l < -0.01:
+                        continue
+                    w_l = max(w_l, 0.0)
+                    if not has_xgb and w_x > 0.01:
+                        continue
+                    if not has_lstm and w_l > 0.01:
+                        continue
+                    y_blend = w_r * y_pred_ridge_prices
+                    if has_xgb:
+                        y_blend = y_blend + w_x * xgb_price_preds
+                    if has_lstm:
+                        y_blend = y_blend + w_l * lstm_price_preds
+                    candidate_mape = np.mean(np.abs((y_test_prices - y_blend) / (y_test_prices + 1e-10))) * 100
+                    if candidate_mape < best_mape:
+                        best_mape = candidate_mape
+                        best_w = (round(w_r, 2), round(w_x, 2), round(w_l, 2))
+
+            self.ensemble_weights = {'ridge': best_w[0], 'xgboost': best_w[1], 'lstm': best_w[2]}
+            w_r, w_x, w_l = best_w
+            y_pred_prices = w_r * y_pred_ridge_prices
+            if has_xgb:
+                y_pred_prices = y_pred_prices + w_x * xgb_price_preds
+            if has_lstm:
+                y_pred_prices = y_pred_prices + w_l * lstm_price_preds
+            print(f"\n[ENSEMBLE] Optimal weights: Ridge={w_r}, XGB={w_x}, LSTM={w_l}")
         else:
             y_pred_prices = y_pred_ridge_prices
 
@@ -461,7 +541,10 @@ class EnhancedPredictor:
         ss_tot = np.sum((y_test_prices - np.mean(y_test_prices)) ** 2)
         avg_r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0
 
-        mode = f"Ridge={self.ensemble_weights['ridge']}+XGB={self.ensemble_weights['xgboost']}" if self.use_ensemble else "Ridge Only"
+        w_r = self.ensemble_weights.get('ridge', 1.0)
+        w_x = self.ensemble_weights.get('xgboost', 0.0)
+        w_l = self.ensemble_weights.get('lstm', 0.0)
+        mode = f"R={w_r}+X={w_x}+L={w_l}" if (has_xgb or has_lstm) else "Ridge Only"
         print(f"\n[DATA] {mode} Metrics:")
         print(f"  R² Score: {avg_r2:.4f}")
         print(f"  RMSE: ${rmse:.2f}")
@@ -473,15 +556,22 @@ class EnhancedPredictor:
             'rmse': rmse,
             'mae': mae,
             'mape': mape,
-            'ensemble': self.use_ensemble
+            'ensemble': self.use_ensemble or has_lstm
         }
 
         return self.latest_metrics
     
     def save_model(self):
-        """Save trained model."""
+        """Save trained model (Ridge + XGBoost + LSTM ensemble)."""
         model_path = os.path.join(self.model_dir, 'ridge_enhanced_models.pkl')
-        
+
+        if self.lstm_model:
+            version_num = 4
+        elif self.xgb_models:
+            version_num = 3
+        else:
+            version_num = 1
+
         data = {
             'models': self.models,
             'xgb_models': self.xgb_models if self.use_ensemble else None,
@@ -493,12 +583,17 @@ class EnhancedPredictor:
             'feature_columns': self.feature_columns,
             'xgb_feature_columns': self.xgb_feature_columns,
             'latest_metrics': self.latest_metrics,
-            'model_version': 3 if self.xgb_models else 1
+            # LSTM fields (v4)
+            'lstm_weights': self.lstm_model.get_weights() if self.lstm_model else None,
+            'lstm_n_features': len(self.feature_columns),
+            'lstm_sequence_length': self.lstm_sequence_length,
+            'model_version': version_num
         }
-        
+
         joblib.dump(data, model_path)
         n_components = self.pca.n_components_ if self.pca else len(self.feature_columns)
-        print(f"\n[OK] Saved enhanced model to {model_path} ({n_components} components)")
+        version_labels = {4: "v4 R+X+L", 3: "v3 R+X", 1: "v1 Ridge"}
+        print(f"\n[OK] Saved enhanced model to {model_path} [{version_labels.get(version_num, 'v?')}, {n_components} components]")
         
     def load_model(self):
         """Load trained model."""
@@ -522,14 +617,37 @@ class EnhancedPredictor:
         self.xgb_scaler = data.get('xgb_scaler', self.scaler)
         self.use_ensemble = bool(self.xgb_models and XGBOOST_AVAILABLE)
 
+        # Load LSTM (v4+)
+        self.lstm_sequence_length = data.get('lstm_sequence_length', 30)
+        lstm_weights = data.get('lstm_weights', None)
+        if lstm_weights is not None and LSTM_AVAILABLE:
+            try:
+                n_features = data.get('lstm_n_features', len(self.feature_columns))
+                self.lstm_model = Sequential([
+                    tf.keras.layers.Input(shape=(self.lstm_sequence_length, n_features)),
+                    LSTM(32, dropout=0.2),
+                    Dense(16, activation='relu'),
+                    Dropout(0.1),
+                    Dense(self.prediction_days)
+                ])
+                self.lstm_model.set_weights(lstm_weights)
+            except Exception as e:
+                print(f"  Warning: Could not load LSTM: {e}")
+                self.lstm_model = None
+        self.use_lstm = LSTM_AVAILABLE and self.lstm_model is not None
+
         # Fallback if metrics missing (legacy models)
         if self.latest_metrics is None:
             print("[WARNING] No metrics found in model, using default RMSE")
             self.latest_metrics = {'rmse': 0.5}
 
         n_components = self.pca.n_components_ if self.pca else len(self.feature_columns)
-        mode = "Ridge+XGBoost" if self.use_ensemble else "Ridge-only"
-        print(f"[OK] Loaded enhanced model ({mode}, {len(self.models)} models, {n_components} components)")
+        components = ["Ridge"]
+        if self.use_ensemble:
+            components.append("XGB")
+        if self.use_lstm:
+            components.append("LSTM")
+        print(f"[OK] Loaded enhanced model ({'+'.join(components)}, {len(self.models)} models, {n_components} components)")
     
     def predict(self, in_vnd: bool = True) -> Dict:
         """Make predictions for the next 7 days."""
@@ -546,23 +664,42 @@ class EnhancedPredictor:
         ridge_preds_scaled = np.array(ridge_preds_scaled).reshape(1, -1)
         ridge_prices = self.target_scaler.inverse_transform(ridge_preds_scaled)[0]
 
-        # XGBoost: stationary features → predict returns → convert to prices
-        if self.use_ensemble and self.xgb_models:
-            last_price_usd = self.data['price'].iloc[-1]
-            latest_xgb = self.data[self.xgb_feature_columns].iloc[-1:].values
-            latest_xgb_scaled = self.xgb_scaler.transform(latest_xgb)
-            xgb_returns = [m.predict(latest_xgb_scaled)[0] for m in self.xgb_models]
-            xgb_prices = [last_price_usd * (1 + r) for r in xgb_returns]
-
-            w_r = self.ensemble_weights['ridge']
-            w_x = self.ensemble_weights['xgboost']
-            predictions_usd = np.array([w_r * r + w_x * x for r, x in zip(ridge_prices, xgb_prices)])
-        else:
-            predictions_usd = ridge_prices
-        
         # Get last known info
         last_date = self.data['date'].iloc[-1]
         last_price_usd = self.data['price'].iloc[-1]
+
+        # XGBoost: stationary features → predict returns → convert to prices
+        xgb_prices = None
+        if self.use_ensemble and self.xgb_models:
+            latest_xgb = self.data[self.xgb_feature_columns].iloc[-1:].values
+            latest_xgb_scaled = self.xgb_scaler.transform(latest_xgb)
+            xgb_returns = [m.predict(latest_xgb_scaled)[0] for m in self.xgb_models]
+            xgb_prices = np.array([last_price_usd * (1 + r) for r in xgb_returns])
+
+        # LSTM: sequence → predict returns → convert to prices
+        lstm_prices = None
+        if self.use_lstm and self.lstm_model is not None:
+            seq_len = self.lstm_sequence_length
+            if len(self.data) >= seq_len:
+                lstm_input = self.data[self.feature_columns].iloc[-seq_len:].values
+                lstm_input_scaled = self.scaler.transform(lstm_input).astype(np.float32)
+                lstm_returns = self.lstm_model.predict(
+                    lstm_input_scaled.reshape(1, seq_len, -1), verbose=0)[0]
+                lstm_prices = np.array([last_price_usd * (1 + r) for r in lstm_returns])
+
+        # Active weights (normalize if a component is missing)
+        w_r = self.ensemble_weights.get('ridge', 1.0)
+        w_x = self.ensemble_weights.get('xgboost', 0.0) if xgb_prices is not None else 0
+        w_l = self.ensemble_weights.get('lstm', 0.0) if lstm_prices is not None else 0
+        total_w = w_r + w_x + w_l
+        if total_w > 0:
+            w_r, w_x, w_l = w_r / total_w, w_x / total_w, w_l / total_w
+
+        predictions_usd = w_r * ridge_prices
+        if w_x > 0:
+            predictions_usd = predictions_usd + w_x * xgb_prices
+        if w_l > 0:
+            predictions_usd = predictions_usd + w_l * lstm_prices
         
         # Generate future dates
         future_dates = self._get_future_trading_dates(last_date, self.prediction_days)
@@ -768,7 +905,12 @@ class EnhancedPredictor:
     def get_model_info(self) -> Dict:
         """Get model information."""
         n_components = self.pca.n_components_ if self.pca else len(self.feature_columns)
-        model_type = 'ridge_xgboost_ensemble' if self.use_ensemble else 'ridge_enhanced_pca'
+        if self.use_lstm:
+            model_type = 'ridge_xgboost_lstm_ensemble'
+        elif self.use_ensemble:
+            model_type = 'ridge_xgboost_ensemble'
+        else:
+            model_type = 'ridge_enhanced_pca'
         metrics = self.latest_metrics or {'avg_r2': 0.9649, 'mape': 3.27, 'rmse': 2.48}
         return {
             'model_type': model_type,
@@ -862,19 +1004,41 @@ class EnhancedPredictor:
         ridge_preds_scaled = np.array(ridge_preds_scaled).reshape(1, -1)
         ridge_prices = self.target_scaler.inverse_transform(ridge_preds_scaled)[0]
 
+        base_price = self.data['price'].iloc[-2]
+
         # XGBoost: separate stationary features → predict returns → convert to prices
+        xgb_prices = None
         if self.use_ensemble and self.xgb_models:
             xgb_features = self.data[self.xgb_feature_columns].iloc[-2:-1].values
             xgb_scaled = self.xgb_scaler.transform(xgb_features)
             xgb_returns = [m.predict(xgb_scaled)[0] for m in self.xgb_models]
-            base_price = self.data['price'].iloc[-2]
-            xgb_prices = [base_price * (1 + r) for r in xgb_returns]
+            xgb_prices = np.array([base_price * (1 + r) for r in xgb_returns])
 
-            w_r = self.ensemble_weights['ridge']
-            w_x = self.ensemble_weights['xgboost']
-            preds_usd = np.array([w_r * r + w_x * x for r, x in zip(ridge_prices, xgb_prices)])
-        else:
-            preds_usd = ridge_prices
+        # LSTM
+        lstm_prices = None
+        if self.use_lstm and self.lstm_model is not None:
+            seq_len = self.lstm_sequence_length
+            end_idx = len(self.data) - 1  # t-1
+            if end_idx >= seq_len:
+                lstm_input = self.data[self.feature_columns].iloc[end_idx - seq_len:end_idx].values
+                lstm_input_scaled = self.scaler.transform(lstm_input).astype(np.float32)
+                lstm_returns = self.lstm_model.predict(
+                    lstm_input_scaled.reshape(1, seq_len, -1), verbose=0)[0]
+                lstm_prices = np.array([base_price * (1 + r) for r in lstm_returns])
+
+        # Active weights
+        w_r = self.ensemble_weights.get('ridge', 1.0)
+        w_x = self.ensemble_weights.get('xgboost', 0.0) if xgb_prices is not None else 0
+        w_l = self.ensemble_weights.get('lstm', 0.0) if lstm_prices is not None else 0
+        total_w = w_r + w_x + w_l
+        if total_w > 0:
+            w_r, w_x, w_l = w_r / total_w, w_x / total_w, w_l / total_w
+
+        preds_usd = w_r * ridge_prices
+        if w_x > 0:
+            preds_usd = preds_usd + w_x * xgb_prices
+        if w_l > 0:
+            preds_usd = preds_usd + w_l * lstm_prices
 
         pred_day_1_usd = preds_usd[0]
         

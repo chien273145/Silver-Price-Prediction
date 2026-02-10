@@ -24,5 +24,5 @@ lxml>=4.9.0
 python-dotenv>=1.0.0
 joblib>=1.2.0
 
-# Note: TensorFlow is NOT required for Ridge Regression model
-# This makes deployment much faster and lighter
+# LSTM ensemble (optional - graceful fallback to Ridge+XGB if unavailable)
+tensorflow>=2.15.0

@@ -444,7 +444,7 @@ async def predict_vietnam_gold():
             "success": True,
             "timestamp": datetime.now().isoformat(),
             "currency": "VND",
-            "unit": "triệu VND/lượng",
+            "unit": "VND/lượng",
             "predictions": predictions,
             "last_known": last_known,
             "summary": summary,
@@ -481,7 +481,7 @@ async def get_vietnam_gold_historical(days: int = Query(30, ge=1, le=365)):
         return {
             "success": True,
             "currency": "VND",
-            "unit": "triệu VND/lượng",
+            "unit": "VND/lượng",
             "count": len(data),
             "data": data
         }
@@ -864,9 +864,9 @@ async def get_gold_performance_transparency():
             grade_color = "#e74c3c"
             comment = "Biến động cao ảnh hưởng đến độ chính xác."
 
-        # vn_gold_predictor returns prices in triệu VND/lượng
-        pred_vnd = acc_data['predicted'] * 1_000_000  # Convert to VND
-        actual_vnd = acc_data['actual'] * 1_000_000
+        # vn_gold_predictor returns prices in VND/lượng
+        pred_vnd = acc_data['predicted']
+        actual_vnd = acc_data['actual']
 
         performance = {
             "date": acc_data['date'],
