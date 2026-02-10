@@ -381,6 +381,8 @@ class RealTimeDataFetcher:
             except Exception as e:
                 result['error'] = str(e)
                 print(f"[ERROR] Error in get_historical_prices: {e}")
+        
+        return result
     
     def update_csv_with_latest(self, csv_path: str) -> bool:
         """
