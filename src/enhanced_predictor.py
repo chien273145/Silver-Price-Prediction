@@ -803,18 +803,20 @@ class EnhancedPredictor:
         # Simpler approach: Update the LAST row of the dataframe with the LIVE values.
         # This assumes the live prediction replaces today's "closing" data effectively.
         
-        last_idx = df.index[-1] # Timestamp
+        last_date_val = df['date'].iloc[-1]
         today_date = pd.Timestamp(datetime.now().date())
         
         # If last date is older than today, append a NEW row for today
-        if last_idx < today_date:
+        if pd.Timestamp(last_date_val) < today_date:
             # Create new row cloning the last one (ffill)
             new_row = df.iloc[-1:].copy()
-            new_row.index = [today_date]
             new_row['Date'] = today_date
-            # Append using concat
-            df = pd.concat([df, new_row])
-            last_idx = today_date # Point to new row
+            new_row['date'] = today_date
+            # Append using concat with ignore_index to keep integer index
+            df = pd.concat([df, new_row], ignore_index=True)
+        
+        # Use integer index for the last row
+        last_idx = df.index[-1]
             
         # Update columns based on market_data for the LAST row (which is now Today)
         if 'silver_close' in market_data:
