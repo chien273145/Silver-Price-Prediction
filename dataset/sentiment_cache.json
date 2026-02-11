@@ -1,0 +1,12 @@
+{
+  "2026-02-11": {
+    "score": 0.125,
+    "positive": 0.3125,
+    "negative": 0.1875,
+    "neutral": 0.5,
+    "ui_score": 56,
+    "label": "Mildly Bullish",
+    "count": 16,
+    "method": "keyword"
+  }
+}

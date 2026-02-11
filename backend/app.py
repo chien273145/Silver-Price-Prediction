@@ -1717,6 +1717,23 @@ async def get_sentiment_score():
     """Get aggregated sentiment score for widgets."""
     global news_fetcher, sentiment_analyzer
 
+    # Try FinBERT sentiment first (cached/pre-computed)
+    try:
+        from src.finbert_sentiment import FinBERTSentiment
+        finbert = FinBERTSentiment(use_cache_only=True)
+        live = finbert.get_live_sentiment()
+        if live.get('method') != 'none':
+            return {
+                "success": True,
+                "overall_sentiment": live['ui_score'],
+                "overall_label": live['label'],
+                "method": live['method'],
+                "score_raw": live['score']
+            }
+    except Exception:
+        pass
+
+    # Fallback to keyword-based sentiment
     if news_fetcher is None or sentiment_analyzer is None:
         return {"success": False, "overall_sentiment": 50, "overall_label": "Neutral"}
 
@@ -1726,7 +1743,8 @@ async def get_sentiment_score():
         return {
             "success": True,
             "overall_sentiment": result.get('overall_sentiment', 50),
-            "overall_label": result.get('overall_label', 'Neutral')
+            "overall_label": result.get('overall_label', 'Neutral'),
+            "method": "keyword"
         }
     except Exception:
         return {"success": False, "overall_sentiment": 50, "overall_label": "Neutral"}

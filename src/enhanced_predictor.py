@@ -27,7 +27,7 @@ try:
     import tensorflow as tf
     tf.get_logger().setLevel('ERROR')
     from tensorflow.keras.models import Sequential
-    from tensorflow.keras.layers import LSTM, Dense, Dropout
+    from tensorflow.keras.layers import LSTM, Dense, Dropout, Bidirectional
     from tensorflow.keras.callbacks import EarlyStopping
     LSTM_AVAILABLE = True
 except ImportError:
@@ -79,6 +79,16 @@ class EnhancedPredictor:
         self.usd_vnd_rate = DEFAULT_USD_VND_RATE
         self.troy_ounce_to_luong = 1.20565
         self.vietnam_premium = 1.125
+
+        # Sentiment analyzer (Phase 2)
+        self._sentiment_analyzer = None
+        self._sentiment_scores = None
+        try:
+            from src.finbert_sentiment import FinBERTSentiment
+            self._sentiment_analyzer = FinBERTSentiment(use_cache_only=True)
+            print("[OK] Sentiment analyzer loaded")
+        except Exception:
+            print("[INFO] Sentiment analyzer not available, proceeding without")
         
     def load_data(self):
         """Load enhanced dataset."""
@@ -311,6 +321,46 @@ class EnhancedPredictor:
         df['gold_dxy_ratio'] = gold / (dxy + 1e-10)
         df['fear_sentiment'] = vix * dxy / (gold + 1e-10)  # Custom sentiment indicator
         
+        # ======= ADVANCED FEATURES (Phase 1 improvements) =======
+        # Mean-reversion signals — key for capturing overextended moves
+        vol_20 = df['volatility_20'].replace(0, 1e-10)
+        df['mean_reversion_20'] = (price - df['sma_20']) / vol_20
+        df['mean_reversion_50'] = (price - df['sma_50']) / (df['volatility_20'] + 1e-10)
+        
+        # Rolling cross-correlation with Gold (silver follows gold)
+        df['corr_silver_gold_20'] = price.rolling(20).corr(gold)
+        df['corr_silver_dxy_20'] = price.rolling(20).corr(dxy)
+        
+        # Price regime indicator (trending vs ranging)
+        df['regime_atr_ratio'] = df['atr'] / (df['volatility_20'] + 1e-10)
+        price_range_20 = df['sma_20'].rolling(20).apply(
+            lambda x: (x.max() - x.min()) / (x.mean() + 1e-10) if len(x) > 0 else 0, raw=True
+        )
+        df['regime_trending'] = (price_range_20 > price_range_20.rolling(60).mean()).astype(int)
+        
+        # Keltner channel position (better than Bollinger for trend detection)
+        kc_middle = df['ema_20']
+        kc_range = 2.0 * df['atr']
+        df['kc_position'] = (price - kc_middle) / (kc_range + 1e-10)
+        
+        # ======= SENTIMENT FEATURES (Phase 2) =======
+        if self._sentiment_analyzer and self._sentiment_analyzer._cache:
+            print("[SENTIMENT] Injecting sentiment features...")
+            dates = df['date'].dt.strftime('%Y-%m-%d').tolist()
+            scores = self._sentiment_analyzer.get_sentiment_features(dates)
+            df['sentiment_score'] = scores
+            df['sentiment_ma3'] = df['sentiment_score'].rolling(3, min_periods=1).mean()
+            df['sentiment_ma7'] = df['sentiment_score'].rolling(7, min_periods=1).mean()
+            df['sentiment_change'] = df['sentiment_score'] - df['sentiment_score'].shift(1)
+            df['sentiment_change'] = df['sentiment_change'].fillna(0)
+            print(f"  [OK] Injected sentiment for {sum(1 for s in scores if s != 0)}/{len(scores)} trading days")
+        else:
+            # Fill with 0 if no sentiment data
+            df['sentiment_score'] = 0.0
+            df['sentiment_ma3'] = 0.0
+            df['sentiment_ma7'] = 0.0
+            df['sentiment_change'] = 0.0
+        
         # Clean data
         self.data = df
         self.data = self.data.iloc[self.sequence_length:].reset_index(drop=True)
@@ -421,11 +471,13 @@ class EnhancedPredictor:
                 y_xgb_test = xgb_return_targets[day][split_idx:]
 
                 xgb_model = XGBRegressor(
-                    n_estimators=500, max_depth=4, learning_rate=0.05,
-                    subsample=0.8, colsample_bytree=0.8,
-                    reg_alpha=0.1, reg_lambda=1.0,
+                    n_estimators=800, max_depth=3, learning_rate=0.03,
+                    subsample=0.8, colsample_bytree=0.7,
+                    min_child_weight=5,
+                    reg_alpha=0.1, reg_lambda=1.5,
+                    gamma=0.1,
                     random_state=42, n_jobs=1, tree_method='hist', verbosity=0,
-                    early_stopping_rounds=20
+                    early_stopping_rounds=30
                 )
                 xgb_model.fit(X_train_xgb, y_xgb_train,
                               eval_set=[(X_test_xgb, y_xgb_test)], verbose=False)
@@ -474,12 +526,15 @@ class EnhancedPredictor:
 
             lstm_model = Sequential([
                 tf.keras.layers.Input(shape=(seq_len, X_scaled.shape[1])),
-                LSTM(32, dropout=0.2),
+                Bidirectional(LSTM(64, return_sequences=True, dropout=0.2)),
+                Bidirectional(LSTM(32, dropout=0.2)),
+                Dense(32, activation='relu'),
+                Dropout(0.15),
                 Dense(16, activation='relu'),
                 Dropout(0.1),
                 Dense(self.prediction_days)
             ])
-            lstm_model.compile(optimizer='adam', loss='mse')
+            lstm_model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001), loss='huber')
             lstm_model.fit(
                 X_seq_train, y_seq_train,
                 epochs=100, batch_size=16,
@@ -625,7 +680,10 @@ class EnhancedPredictor:
                 n_features = data.get('lstm_n_features', len(self.feature_columns))
                 self.lstm_model = Sequential([
                     tf.keras.layers.Input(shape=(self.lstm_sequence_length, n_features)),
-                    LSTM(32, dropout=0.2),
+                    Bidirectional(LSTM(64, return_sequences=True, dropout=0.2)),
+                    Bidirectional(LSTM(32, dropout=0.2)),
+                    Dense(32, activation='relu'),
+                    Dropout(0.15),
                     Dense(16, activation='relu'),
                     Dropout(0.1),
                     Dense(self.prediction_days)

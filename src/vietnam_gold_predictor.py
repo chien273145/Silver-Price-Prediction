@@ -25,7 +25,7 @@ try:
     import tensorflow as tf
     tf.get_logger().setLevel('ERROR')
     from tensorflow.keras.models import Sequential
-    from tensorflow.keras.layers import LSTM, Dense, Dropout
+    from tensorflow.keras.layers import LSTM, Dense, Dropout, Bidirectional
     from tensorflow.keras.callbacks import EarlyStopping
     LSTM_AVAILABLE = True
 except ImportError:
@@ -366,12 +366,14 @@ class VietnamGoldPredictor:
                 y_xgb_train, y_xgb_test = y_xgb[:split_idx], y_xgb[split_idx:]
 
                 xgb_model = XGBRegressor(
-                    n_estimators=500, max_depth=4, learning_rate=0.05,
-                    subsample=0.8, colsample_bytree=0.8,
-                    reg_alpha=0.1, reg_lambda=1.0,
+                    n_estimators=800, max_depth=3, learning_rate=0.03,
+                    subsample=0.8, colsample_bytree=0.7,
+                    min_child_weight=5,
+                    reg_alpha=0.1, reg_lambda=1.5,
+                    gamma=0.1,
                     n_jobs=1, tree_method='hist',
                     random_state=42, verbosity=0,
-                    early_stopping_rounds=20
+                    early_stopping_rounds=30
                 )
                 xgb_model.fit(X_train_xgb, y_xgb_train,
                               eval_set=[(X_test_xgb, y_xgb_test)], verbose=False)
@@ -415,12 +417,15 @@ class VietnamGoldPredictor:
             # Build LSTM model
             lstm_model = Sequential([
                 tf.keras.layers.Input(shape=(seq_len, X_scaled.shape[1])),
-                LSTM(32, dropout=0.2),
+                Bidirectional(LSTM(64, return_sequences=True, dropout=0.2)),
+                Bidirectional(LSTM(32, dropout=0.2)),
+                Dense(32, activation='relu'),
+                Dropout(0.15),
                 Dense(16, activation='relu'),
                 Dropout(0.1),
                 Dense(self.prediction_days)
             ])
-            lstm_model.compile(optimizer='adam', loss='mse')
+            lstm_model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001), loss='huber')
 
             lstm_model.fit(
                 X_seq_train, y_seq_train,
@@ -577,7 +582,10 @@ class VietnamGoldPredictor:
                 n_features = model_data.get('lstm_n_features', len(self.feature_columns))
                 self.lstm_model = Sequential([
                     tf.keras.layers.Input(shape=(self.lstm_sequence_length, n_features)),
-                    LSTM(32, dropout=0.2),
+                    Bidirectional(LSTM(64, return_sequences=True, dropout=0.2)),
+                    Bidirectional(LSTM(32, dropout=0.2)),
+                    Dense(32, activation='relu'),
+                    Dropout(0.15),
                     Dense(16, activation='relu'),
                     Dropout(0.1),
                     Dense(self.prediction_days)

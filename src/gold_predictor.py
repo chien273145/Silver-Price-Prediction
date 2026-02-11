@@ -28,7 +28,7 @@ try:
     import tensorflow as tf
     tf.get_logger().setLevel('ERROR')
     from tensorflow.keras.models import Sequential
-    from tensorflow.keras.layers import LSTM, Dense, Dropout
+    from tensorflow.keras.layers import LSTM, Dense, Dropout, Bidirectional
     from tensorflow.keras.callbacks import EarlyStopping
     LSTM_AVAILABLE = True
 except ImportError:
@@ -79,6 +79,14 @@ class GoldPredictor:
         self.troy_ounce_to_luong = 1.20565
         self.troy_ounce_to_luong = 1.20565
         self.vietnam_premium = 1.125 # Adjusted to match market (172M vs 189M)
+
+        # Sentiment analyzer (Phase 2)
+        self._sentiment_analyzer = None
+        try:
+            from src.finbert_sentiment import FinBERTSentiment
+            self._sentiment_analyzer = FinBERTSentiment(use_cache_only=True)
+        except Exception:
+            pass
         
     def load_data(self):
         """Load gold geopolitical dataset."""
@@ -149,6 +157,32 @@ class GoldPredictor:
         self.data['rolling_min_7'] = self.data['price'].rolling(7).min()
         self.data['rolling_max_7'] = self.data['price'].rolling(7).max()
         
+        # ======= ADVANCED FEATURES (Phase 1 improvements) =======
+        # Mean-reversion signals
+        vol_20 = self.data['rolling_std_14'].replace(0, 1e-10)
+        self.data['mean_reversion_14'] = (self.data['price'] - self.data['gold_ma14']) / vol_20
+        self.data['mean_reversion_30'] = (self.data['price'] - self.data['gold_ma30']) / (self.data['rolling_std_30'] + 1e-10)
+        
+        # Rolling cross-correlation with DXY and VIX
+        if 'dxy' in self.data.columns:
+            self.data['corr_gold_dxy_20'] = self.data['price'].rolling(20).corr(self.data['dxy'])
+        if 'vix' in self.data.columns:
+            self.data['corr_gold_vix_20'] = self.data['price'].rolling(20).corr(self.data['vix'])
+        if 'silver_close' in self.data.columns:
+            self.data['corr_gold_silver_20'] = self.data['price'].rolling(20).corr(self.data['silver_close'])
+        
+        # Price regime indicator (trending vs ranging)
+        if 'gold_ma14' in self.data.columns:
+            price_range_14 = self.data['gold_ma14'].rolling(14).apply(
+                lambda x: (x.max() - x.min()) / (x.mean() + 1e-10) if len(x) > 0 else 0, raw=True
+            )
+            self.data['regime_trending'] = (price_range_14 > price_range_14.rolling(60).mean()).astype(int)
+        
+        # Keltner channel position
+        if 'gold_ema14' in self.data.columns and 'gold_volatility' in self.data.columns:
+            kc_range = 2.0 * self.data['gold_volatility']
+            self.data['kc_position'] = (self.data['price'] - self.data['gold_ema14']) / (kc_range + 1e-10)
+        
         # Extended features list (including VIX, DXY, Oil, US10Y)
         market_features = [
             # VIX features
@@ -163,12 +197,28 @@ class GoldPredictor:
             'fear_index', 'gold_oil_ratio'
         ]
         
+        advanced_features = [
+            'mean_reversion_14', 'mean_reversion_30',
+            'corr_gold_dxy_20', 'corr_gold_vix_20', 'corr_gold_silver_20',
+            'regime_trending', 'kc_position'
+        ]
+        
         extended_features = base_features + [
             'momentum_3', 'momentum_7', 'momentum_14', 'momentum_30',
             'roc_7', 'roc_14', 'roc_30',
             'rolling_std_7', 'rolling_std_14', 'rolling_std_30',
             'rolling_min_7', 'rolling_max_7'
-        ] + market_features
+        ] + market_features + advanced_features
+        
+        # ======= SENTIMENT FEATURES (Phase 2) =======
+        if self._sentiment_analyzer and self._sentiment_analyzer._cache:
+            dates = self.data['date'].dt.strftime('%Y-%m-%d').tolist()
+            scores = self._sentiment_analyzer.get_sentiment_features(dates)
+            self.data['sentiment_score'] = scores
+            self.data['sentiment_ma3'] = self.data['sentiment_score'].rolling(3, min_periods=1).mean()
+            self.data['sentiment_ma7'] = self.data['sentiment_score'].rolling(7, min_periods=1).mean()
+            self.data['sentiment_change'] = self.data['sentiment_score'].diff().fillna(0)
+            extended_features += ['sentiment_score', 'sentiment_ma3', 'sentiment_ma7', 'sentiment_change']
         
         self.feature_columns = [col for col in extended_features if col in self.data.columns]
         print(f"Selected {len(self.feature_columns)} extended features (incl. VIX, DXY, Oil, US10Y)")
@@ -271,11 +321,13 @@ class GoldPredictor:
                 y_xgb_train, y_xgb_test = y_xgb[:split_idx], y_xgb[split_idx:]
 
                 xgb_model = XGBRegressor(
-                    n_estimators=500, max_depth=4, learning_rate=0.05,
-                    subsample=0.8, colsample_bytree=0.8,
-                    reg_alpha=0.1, reg_lambda=1.0,
+                    n_estimators=800, max_depth=3, learning_rate=0.03,
+                    subsample=0.8, colsample_bytree=0.7,
+                    min_child_weight=5,
+                    reg_alpha=0.1, reg_lambda=1.5,
+                    gamma=0.1,
                     random_state=42, n_jobs=1, tree_method='hist', verbosity=0,
-                    early_stopping_rounds=20
+                    early_stopping_rounds=30
                 )
                 xgb_model.fit(X_train_xgb, y_xgb_train,
                               eval_set=[(X_test_xgb, y_xgb_test)], verbose=False)
@@ -317,12 +369,15 @@ class GoldPredictor:
 
             lstm_model = Sequential([
                 tf.keras.layers.Input(shape=(seq_len, X_scaled.shape[1])),
-                LSTM(32, dropout=0.2),
+                Bidirectional(LSTM(64, return_sequences=True, dropout=0.2)),
+                Bidirectional(LSTM(32, dropout=0.2)),
+                Dense(32, activation='relu'),
+                Dropout(0.15),
                 Dense(16, activation='relu'),
                 Dropout(0.1),
                 Dense(self.prediction_days)
             ])
-            lstm_model.compile(optimizer='adam', loss='mse')
+            lstm_model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001), loss='huber')
             lstm_model.fit(
                 X_seq_train, y_seq_train,
                 epochs=100, batch_size=16,
@@ -458,7 +513,10 @@ class GoldPredictor:
                 n_features = model_data.get('lstm_n_features', len(self.feature_columns))
                 self.lstm_model = Sequential([
                     tf.keras.layers.Input(shape=(self.lstm_sequence_length, n_features)),
-                    LSTM(32, dropout=0.2),
+                    Bidirectional(LSTM(64, return_sequences=True, dropout=0.2)),
+                    Bidirectional(LSTM(32, dropout=0.2)),
+                    Dense(32, activation='relu'),
+                    Dropout(0.15),
                     Dense(16, activation='relu'),
                     Dropout(0.1),
                     Dense(self.prediction_days)
