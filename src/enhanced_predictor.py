@@ -78,7 +78,7 @@ class EnhancedPredictor:
 
         self.usd_vnd_rate = DEFAULT_USD_VND_RATE
         self.troy_ounce_to_luong = 1.20565
-        self.vietnam_premium = 2.7  # Silver in VN is ~2.7x spot (physical/industrial premium)
+        self.vietnam_premium = 1.125
 
         # Sentiment analyzer (Phase 2)
         self._sentiment_analyzer = None
@@ -110,14 +110,17 @@ class EnhancedPredictor:
         print(f"\n[OK] Loaded {len(self.data):,} records with external features")
         print(f"  Date range: {self.data['Date'].min()} to {self.data['Date'].max()}")
         
-        # Check for stale data and patch if needed
+        # Check for stale data — warn but do NOT auto-patch
+        # (Auto-patching fetches from yfinance which returns unreliable 2026 data)
         last_date = self.data['Date'].max()
         today = datetime.now()
         gap_days = (today - last_date).days
         
         if gap_days > 2:
-            print(f"[WARNING] Data stale ({gap_days} days old). Auto-patching...")
-            self._patch_missing_data(last_date, gap_days)
+            print(f"[INFO] Data ends {gap_days} days ago ({last_date.strftime('%Y-%m-%d')}). Using existing data.")
+            
+        # Ensure features are created after loading
+        self.create_features()
             
     def _patch_missing_data(self, last_date, gap_days):
         """Fetch missing data from RealTimeDataFetcher."""
