@@ -77,8 +77,7 @@ class GoldPredictor:
 
         self.usd_vnd_rate = DEFAULT_USD_VND_RATE
         self.troy_ounce_to_luong = 1.20565
-        self.troy_ounce_to_luong = 1.20565
-        self.vietnam_premium = 1.125 # Adjusted to match market (172M vs 189M)
+        self.vietnam_premium = 1.08  # Adjusted to ~8% premium (SJC vs Spot)
 
         # Sentiment analyzer (Phase 2)
         self._sentiment_analyzer = None

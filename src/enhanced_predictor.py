@@ -78,7 +78,7 @@ class EnhancedPredictor:
 
         self.usd_vnd_rate = DEFAULT_USD_VND_RATE
         self.troy_ounce_to_luong = 1.20565
-        self.vietnam_premium = 1.125
+        self.vietnam_premium = 2.7  # Silver in VN is ~2.7x spot (physical/industrial premium)
 
         # Sentiment analyzer (Phase 2)
         self._sentiment_analyzer = None
