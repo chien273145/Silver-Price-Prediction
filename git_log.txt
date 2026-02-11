@@ -1,0 +1,50 @@
+﻿7c97b01 fix(calibration): update premiums to match vietnam market (Silver 2.7x, Gold 1.08x)
+9727356 đŸ¤– Daily Data Update & Model Retraining
+0ec6a67 Merge branch 'main' of https://github.com/chien273145/Silver-Price-Prediction
+7e5b1e0 feat: upgrade models (LSTM Bidirectional, XGBoost tuning, sentiment integration)
+dc91447 đŸ¤– Daily Data Update & Model Retraining
+d516976 Fix: Resolve type comparison error in predict_live method
+5ebef67 đŸ¤– Daily Data Update & Model Retraining
+4c4b401 đŸ¤– Daily Data Update & Model Retraining
+d871613 Trigger rebuild for silver model sync
+7e579d9 đŸ¤– Daily Data Update & Model Retraining
+df4ddec Removed leftover gold-vn links in blog and README
+2c8d2a4 đŸ¤– Daily Data Update & Model Retraining
+50b7443 Consolidated gold pages, updated sitemap and fixed blog links
+cd1cfa0 đŸ¤– Daily Data Update & Model Retraining
+8c1692d Update dataset with patched silver data
+a8b187b Fix data fetching bug: add missing return in get_historical_prices
+70aedc3 đŸ¤– Daily Data Update & Model Retraining
+c0a963c Add new AI Buy Score blog post to blog index
+2f9dbd2 đŸ¤– Daily Data Update & Model Retraining
+a23543a Fix mobile header layout: wrap actions and correct selectors
+ebed136 đŸ¤– Daily Data Update & Model Retraining
+78a7c5a fix(deploy): remove tensorflow from requirements.txt for Render free tier
+d2c0c6b đŸ¤– Daily Data Update & Model Retraining
+ec5cd8d feat(ml): add LSTM as 3rd ensemble member (Ridge+XGBoost+LSTM v4)
+910541e đŸ¤– Daily Data Update & Model Retraining
+c74597f Update AdSense Publisher ID to pub-7278833069482099
+d32bcc4 WIP on main: 1dd63e3 Update AdSense Publisher ID to pub-7278833069482099
+ab0f59e index on main: 1dd63e3 Update AdSense Publisher ID to pub-7278833069482099
+1dd63e3 Update AdSense Publisher ID to pub-7278833069482099
+9498564 đŸ¤– Daily Data Update & Model Retraining
+10022e6 đŸ¤– Daily Data Update & Model Retraining
+e77025d feat(ml): XGBoost stationary features + return targets for ensemble diversity
+a7a56d3 Update Vietnam Gold Predictor
+2c64184 Fix 404 on gold-vn.html and add AI Buy Score blog post
+b922ed7 đŸ¤– Daily Data Update & Model Retraining
+84724ac feat(ml): add XGBoost ensemble with dynamic weight optimization
+a3c6fe5 đŸ¤– Daily Data Update & Model Retraining
+dc912a6 đŸ¤– Daily Data Update & Model Retraining
+4534a9c đŸ¤– Daily Data Update & Model Retraining
+0a06ba6 Merge branch 'main' of https://github.com/chien273145/silver-price-prediction
+5b28a30 fix(backend): correct last_known date in live prediction
+7ecbe20 đŸ¤– Daily Data Update & Model Retraining
+6dc9012 Merge branch 'main' of https://github.com/chien273145/silver-price-prediction
+5f6a2d3 feat(portfolio): update gold/silver brand options in dynamic dropdown
+aa513aa đŸ¤– Daily Data Update & Model Retraining
+0a6f8ef fix(backend): add route for savings vs gold blog post
+00fab2b Fix gold performance-transparency: use vn_gold_predictor for actual SJC prices
+e3fcf00 đŸ¤– Daily Data Update & Model Retraining
+680c6f3 Merge branch 'main' of https://github.com/chien273145/silver-price-prediction
+8aaa3d9 feat(web): consolidate homepage to silver prediction page
