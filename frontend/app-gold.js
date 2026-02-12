@@ -803,7 +803,8 @@ function updateChart() {
                     pointRadius: 0,
                     pointHoverRadius: 6,
                     pointHoverBackgroundColor: '#ffd700',
-                    borderWidth: 2
+                    borderWidth: 2,
+                    spanGaps: true  // Connect points across gaps
                 },
                 {
                     label: 'Dự đoán',
@@ -814,6 +815,7 @@ function updateChart() {
                     pointRadius: 4,
                     pointHoverRadius: 6,
                     borderWidth: 2,
+                    spanGaps: true,  // Connect points across gaps
                     order: 1
                 },
                 {
@@ -822,6 +824,7 @@ function updateChart() {
                     borderColor: 'transparent',
                     pointRadius: 0,
                     fill: false,
+                    spanGaps: true,  // Connect points across gaps
                     order: 2
                 },
                 {
@@ -831,6 +834,7 @@ function updateChart() {
                     backgroundColor: 'rgba(255, 215, 0, 0.15)', // Gold cloud
                     pointRadius: 0,
                     fill: '-1', // Fill to previous dataset (Lower)
+                    spanGaps: true,  // Connect points across gaps
                     order: 3
                 }
 

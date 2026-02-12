@@ -54,6 +54,7 @@
 
     <!-- Styles -->
     <link rel="stylesheet" href="/static/styles.css?v=2.1.0">
+    <link rel="stylesheet" href="/static/trust-features.css?v=1.0.0">
 </head>
 
 <body data-asset="silver">
@@ -390,6 +391,22 @@
         </div>
     </section>
 
+    <!-- Prediction Reasoning Section (NEW) -->
+    <section class="reasoning-section">
+        <div class="card reasoning-card">
+            <div id="predictionReasoning">
+                <div class="reasoning-loading">Đang phân tích lý do dự đoán...</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Buy Score & Recommendations Section (NEW) -->
+    <section class="buy-score-recommendations-section">
+        <div id="buyScoreContainer">
+            <div class="buy-score-loading">Đang tính toán điểm mua và phân tích thị trường...</div>
+        </div>
+    </section>
+
     <!-- Model Info Section -->
     <section class="model-section">
         <div class="card model-card">
@@ -684,7 +701,8 @@
     <!-- Scripts -->
     <script src="/static/terms_modal.js"></script>
     <script src="/static/portfolio.js?v=2.1.0"></script>
-    <script src="/static/app-silver.js?v=2.1.0"></script>
+    <script src="/static/trust-features.js?v=1.0.0"></script>
+    <script src="/static/app-silver.js?v=2.2.0"></script>
     <script>
         // Modal functionality
         function showPrivacyPolicy() {

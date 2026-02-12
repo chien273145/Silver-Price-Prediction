@@ -735,6 +735,7 @@ function updateChart() {
                     pointHoverRadius: 6,
                     pointHoverBackgroundColor: '#c0c0c0',
                     borderWidth: 2,
+                    spanGaps: true,  // Connect points across gaps
                     order: 3
                 },
                 {
@@ -743,6 +744,7 @@ function updateChart() {
                     borderColor: 'transparent',
                     pointRadius: 0,
                     fill: false,
+                    spanGaps: true,  // Connect points across gaps
                     order: 2
                 },
                 {
@@ -752,6 +754,7 @@ function updateChart() {
                     backgroundColor: 'rgba(59, 130, 246, 0.15)', // Blue cloud to match Silver theme
                     pointRadius: 0,
                     fill: '-1', // Fill to previous dataset (Lower)
+                    spanGaps: true,  // Connect points across gaps
                     order: 1
                 },
                 {
@@ -765,6 +768,7 @@ function updateChart() {
                     pointBackgroundColor: 'rgba(59, 130, 246, 1)',
                     borderWidth: 3,
                     borderDash: [5, 5],
+                    spanGaps: true,  // Connect points across gaps
                     order: 0 // Top most
                 }
             ]
