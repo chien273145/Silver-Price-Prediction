@@ -23,6 +23,7 @@ lxml>=4.9.0
 # Utils
 python-dotenv>=1.0.0
 joblib>=1.2.0
+lunardate>=1.2.0
 
 # LSTM ensemble - NOT included here (too heavy for Render free tier 512MB)
 # Install locally: pip install tensorflow>=2.15.0

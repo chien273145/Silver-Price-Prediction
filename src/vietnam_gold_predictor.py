@@ -11,6 +11,11 @@ import pickle
 from datetime import datetime, timedelta
 from sklearn.linear_model import Ridge
 from sklearn.preprocessing import StandardScaler
+try:
+    from lunardate import LunarDate
+except ImportError:
+    print("[WARNING] lunardate not installed. Lunar features will be approximate.")
+    LunarDate = None
 
 # XGBoost ensemble (optional - graceful fallback to Ridge-only)
 try:
@@ -232,12 +237,43 @@ class VietnamGoldPredictor:
         df['premium_ma7'] = df['vn_premium'].rolling(7).mean()
         df['premium_change'] = df['vn_premium'] - df['vn_premium'].shift(1)
         
-        # 6. Lunar calendar features (approximation for Tết effect)
-        df['month'] = df['date'].dt.month
-        df['is_tet_season'] = df['month'].isin([1, 2]).astype(int)  # Tết usually Jan-Feb
-        df['is_wedding_season'] = df['month'].isin([10, 11, 12]).astype(int)  # Wedding season
-        df['is_god_of_wealth_day'] = ((df['month'] == 2) & (df['date'].dt.day <= 10)).astype(int)
-        
+        # 6. Lunar calendar features (Real Lunar Date)
+        if LunarDate:
+            # Use list comprehension equivalent (manual iteration) for robustness
+            lunar_data = []
+            for _, row in df.iterrows():
+                try:
+                    ld = LunarDate.fromSolarDate(row['date'].year, row['date'].month, row['date'].day)
+                    
+                    # Tet Holiday (Lunar Jan 1st - 5th)
+                    is_tet = 1 if (ld.month == 1 and 1 <= ld.day <= 5) else 0
+                    
+                    # God of Wealth Day (Lunar Jan 10th)
+                    is_god_of_wealth = 1 if (ld.month == 1 and ld.day == 10) else 0
+                    
+                    # Full Moon (Lunar 15th)
+                    is_full_moon = 1 if ld.day == 15 else 0
+                    
+                    lunar_data.append([ld.month, ld.day, is_tet, is_god_of_wealth, is_full_moon])
+                except:
+                    lunar_data.append([0, 0, 0, 0, 0])
+
+            lunar_feats = pd.DataFrame(lunar_data, columns=['lunar_month', 'lunar_day', 'is_tet', 'is_god_of_wealth', 'is_full_moon'], index=df.index)
+            
+            df = pd.concat([df, lunar_feats], axis=1)
+            
+            # Keep Gregorian approximation as fallback/additional signal or remove?
+            # Let's keep wedding season as Gregorian (Oct-Dec)
+            df['is_wedding_season'] = df['date'].dt.month.isin([10, 11, 12]).astype(int)
+            
+        else:
+            # Fallback if lunardate not installed
+            df['month'] = df['date'].dt.month
+            df['is_tet'] = df['month'].isin([1, 2]).astype(int) 
+            df['is_god_of_wealth'] = ((df['month'] == 2) & (df['date'].dt.day <= 10)).astype(int)
+            df['is_full_moon'] = 0
+            df['is_wedding_season'] = df['month'].isin([10, 11, 12]).astype(int)
+
         # 7. Day of week effect
         df['day_of_week'] = df['date'].dt.dayofweek
         df['is_weekend'] = df['day_of_week'].isin([5, 6]).astype(int)
@@ -261,8 +297,8 @@ class VietnamGoldPredictor:
             'vn_std7', 'vn_std14', 'vn_std30',
             'spread_ma7', 'spread_change',
             'premium_ma7', 'premium_change',
-            'month', 'day_of_week',
-            'is_tet_season', 'is_wedding_season', 'is_god_of_wealth_day', 'is_weekend'
+            'day_of_week', 'is_weekend',
+            'is_tet', 'is_god_of_wealth', 'is_full_moon', 'is_wedding_season'
         ]
         
         # Combine features

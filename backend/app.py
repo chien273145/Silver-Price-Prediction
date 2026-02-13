@@ -259,6 +259,48 @@ class ModelInfoResponse(BaseModel):
 
 # API Endpoints
 
+# Import daily update script
+from daily_update import run_daily_update
+from fastapi import BackgroundTasks
+
+@app.get("/api/admin/daily-update")
+@app.post("/api/admin/daily-update")
+async def trigger_daily_update(
+    background_tasks: BackgroundTasks, 
+    x_update_secret: str = Header(None),
+    secret: str = None
+):
+    """
+    Trigger daily model update and retraining.
+    Supports both POST and GET (for UptimeRobot free tier).
+    Secret can be passed via 'x-update-secret' header OR 'secret' query param.
+    """
+    # Verify secret
+    expected_secret = os.getenv("UPDATE_SECRET")
+    if not expected_secret:
+        # If no secret env var is set, verify against a default logic or fail secure
+        # For safety, if UPDATE_SECRET is not set in env, we fail or use a hardcoded fallback if user allows
+        # Here we use the global variable defined at top: UPDATE_SECRET
+        pass # UPDATE_SECRET is defined globally at line 21
+    
+    # Check both header and query param
+    provided_secret = x_update_secret or secret
+    
+    if provided_secret != UPDATE_SECRET:
+        print(f"[AUTH FAILED] Attempt to trigger update with secret: {provided_secret} (Expected: {UPDATE_SECRET})")
+        raise HTTPException(status_code=401, detail="Invalid secret key")
+    
+    print(f"[ADMIN] Daily update triggered manually via API from {datetime.now()}")
+    
+    # Run in background to avoid timeout
+    background_tasks.add_task(run_daily_update)
+    
+    return {
+        "status": "started", 
+        "message": "Daily update process started in background. Check server logs for progress.",
+        "timestamp": datetime.now().isoformat()
+    }
+
 @app.get("/")
 async def root():
     """Root endpoint - serve frontend or API info."""
