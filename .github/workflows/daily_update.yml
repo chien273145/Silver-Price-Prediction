@@ -1,0 +1,142 @@
+name: Daily Data Update & Retrain
+
+on:
+  schedule:
+    # Chạy lúc 01:00 UTC = 08:00 SA Giờ Việt Nam (UTC+7)
+    - cron: '0 1 * * *'
+  workflow_dispatch:
+    # Cho phép chạy thủ công từ GitHub UI
+    inputs:
+      retrain:
+        description: 'Retrain models after updating data?'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+jobs:
+  update-and-retrain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    permissions:
+      contents: write  # Cần để commit và push dữ liệu mới
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 1
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install \
+            numpy>=1.21.0 \
+            pandas>=1.3.0 \
+            scikit-learn>=1.0.0 \
+            "xgboost>=1.7.0,<2.1" \
+            yfinance>=0.2.0 \
+            joblib \
+            requests \
+            lunardate
+
+      - name: Update Silver dataset
+        run: |
+          echo "=== Updating Silver dataset ==="
+          python update_data.py --silver-only
+        continue-on-error: true
+
+      - name: Update Gold world dataset
+        run: |
+          echo "=== Updating Gold world dataset ==="
+          python update_data.py --gold-only
+        continue-on-error: true
+
+      - name: Retrain Silver model
+        if: ${{ github.event.inputs.retrain != 'false' }}
+        run: |
+          echo "=== Retraining Silver model ==="
+          python update_data.py --silver-only --retrain
+        continue-on-error: true
+
+      - name: Retrain Gold model
+        if: ${{ github.event.inputs.retrain != 'false' }}
+        run: |
+          echo "=== Retraining Gold model ==="
+          python update_data.py --gold-only --retrain
+        continue-on-error: true
+
+      - name: Check for changes
+        id: check_changes
+        run: |
+          git diff --name-only
+          if git diff --quiet; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "No changes detected."
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "Changes detected!"
+          fi
+
+      - name: Commit and push updated data
+        if: steps.check_changes.outputs.changed == 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Stage dataset and model files
+          git add dataset/dataset_enhanced.csv || true
+          git add dataset/gold_geopolitical_dataset.csv || true
+          git add models/ridge_enhanced_models.pkl || true
+          git add models/vietnam_gold_models.pkl || true
+
+          # Create commit with timestamp
+          TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
+          git commit -m "auto: Daily data update & retrain [${TIMESTAMP}]
+
+          - Updated Silver dataset from Yahoo Finance
+          - Updated Gold world dataset from Yahoo Finance
+          - Retrained Silver model (Ridge + XGBoost)
+          - Retrained Gold model (Transfer Learning + XGBoost)
+          [skip ci]"
+
+          git push origin main
+          echo "Pushed changes to GitHub!"
+
+      - name: No changes to commit
+        if: steps.check_changes.outputs.changed == 'false'
+        run: echo "No new data available today. Nothing to commit."
+
+      - name: Summary
+        run: |
+          echo "=== Run Summary ==="
+          python -c "
+          import pandas as pd
+          from datetime import datetime
+
+          # Silver
+          try:
+              df = pd.read_csv('dataset/dataset_enhanced.csv')
+              df['Date'] = pd.to_datetime(df['Date'])
+              print(f'Silver: {len(df)} rows, last date: {df[\"Date\"].max().date()}')
+          except Exception as e:
+              print(f'Silver: ERROR - {e}')
+
+          # Gold
+          try:
+              df = pd.read_csv('dataset/gold_geopolitical_dataset.csv')
+              df['date'] = pd.to_datetime(df['date'])
+              print(f'Gold:   {len(df)} rows, last date: {df[\"date\"].max().date()}')
+          except Exception as e:
+              print(f'Gold: ERROR - {e}')
+          "
