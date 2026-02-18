@@ -2102,18 +2102,16 @@ async def get_buy_score(asset: str = Query("gold", description="Asset type: gold
             current_price=current_price,
             avg_7day_price=avg_7day_price,
         )
-        
+
         # Update cache
         _buy_score_cache[asset] = {
             "data": result,
             "timestamp": now
         }
-        
-        return {
-            "success": True,
-            "data": result
-        }
-        
+
+        # Return flat format (data directly, not nested under 'data')
+        return {"success": True, **result}
+
     except Exception as e:
         print(f"Buy Score Error: {e}")
         import traceback
@@ -2121,13 +2119,11 @@ async def get_buy_score(asset: str = Query("gold", description="Asset type: gold
         return {
             "success": False,
             "error": str(e),
-            "data": {
-                "score": 50,
-                "label": "Không xác định",
-                "color": "gray",
-                "factors": [],
-                "recommendation": "Không thể tính điểm do lỗi hệ thống."
-            }
+            "score": 50,
+            "label": "Không xác định",
+            "color": "gray",
+            "factors": [],
+            "recommendation": "Không thể tính điểm do lỗi hệ thống."
         }
 
 
@@ -2150,8 +2146,11 @@ async def get_time_machine_prediction(request: dict):
         - confidence intervals
     """
     try:
-        portfolio_items = request.get('items', [])
-        
+        # Accept both 'items' (old) and 'portfolio_items' (new) keys
+        portfolio_items = request.get('portfolio_items') or request.get('items', [])
+        current_gold_price = request.get('current_gold_price', 0)
+        current_silver_price = request.get('current_silver_price', 0)
+
         if not portfolio_items:
             return {
                 "success": True,
@@ -2219,12 +2218,10 @@ async def get_time_machine_prediction(request: dict):
             gold_predictions=gold_predictions,
             silver_predictions=silver_predictions,
         )
-        
-        return {
-            "success": True,
-            "data": result
-        }
-        
+
+        # Return flat format
+        return {"success": True, **result}
+
     except Exception as e:
         print(f"Time Machine Error: {e}")
         import traceback
@@ -2232,96 +2229,72 @@ async def get_time_machine_prediction(request: dict):
         return {
             "success": False,
             "error": str(e),
-            "data": {
-                "current_value": 0,
-                "total_invested": 0,
-                "predictions": [],
-                "message": "Không thể tính toán do lỗi hệ thống."
-            }
+            "current_value": 0,
+            "total_invested": 0,
+            "predictions": [],
+            "message": "Không thể tính toán do lỗi hệ thống."
         }
 
 
 # ========== NEWS API (with caching) ==========
-import httpx
-from datetime import timedelta
-
-# News cache
 _news_cache = {
     "data": None,
     "timestamp": None,
-    "cache_duration": timedelta(hours=1)
 }
-
-NEWS_API_KEY = os.getenv("NEWS_API_KEY", "")
+NEWS_CACHE_TTL = 1800  # 30 minutes
 
 @app.get("/api/news")
 async def get_gold_news(
-    asset: str = Query("gold", description="Asset type: gold or silver"),
-    lang: str = Query("vi", description="Language: vi or en")
+    asset: str = Query("all", description="Asset type: gold, silver, or all"),
+    tag: str = Query("all", description="Tag filter: gold, silver, or all")
 ):
     """
-    Fetch latest gold/silver news from NewsAPI.
-    Results are cached for 1 hour to save API quota.
+    Fetch latest gold/silver news from RSS feeds (Kitco).
+    Results are cached for 30 minutes.
     """
-    global _news_cache
-    
-    # Check cache
+    global news_fetcher, sentiment_analyzer, _news_cache
+
     now = datetime.now()
-    cache_key = f"{asset}_{lang}"
-    
-    if (_news_cache["data"] is not None and 
-        _news_cache.get("key") == cache_key and
-        _news_cache["timestamp"] and 
-        now - _news_cache["timestamp"] < _news_cache["cache_duration"]):
-        return {"success": True, "articles": _news_cache["data"], "cached": True}
-    
+    filter_tag = tag if tag != "all" else (asset if asset != "all" else "all")
+
+    # Check cache
+    if _news_cache["data"] and _news_cache["timestamp"]:
+        age = (now - _news_cache["timestamp"]).total_seconds()
+        if age < NEWS_CACHE_TTL:
+            cached = _news_cache["data"]
+            news_list = cached.get("news", [])
+            if filter_tag != "all":
+                news_list = [n for n in news_list if n.get("tag") == filter_tag]
+            return {"success": True, **cached, "news": news_list, "cached": True}
+
     try:
-        # Build search query
-        if asset == "silver":
-            query = "giá bạc OR silver price" if lang == "vi" else "silver price"
-        else:
-            query = "giá vàng OR gold price OR SJC" if lang == "vi" else "gold price"
-        
-        # Fetch from NewsAPI
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                "https://newsapi.org/v2/everything",
-                params={
-                    "q": query,
-                    "apiKey": NEWS_API_KEY,
-                    "language": lang,
-                    "sortBy": "publishedAt",
-                    "pageSize": 10
-                },
-                timeout=10.0
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                articles = []
-                
-                for article in data.get("articles", [])[:8]:
-                    articles.append({
-                        "title": article.get("title", ""),
-                        "description": article.get("description", ""),
-                        "url": article.get("url", ""),
-                        "image": article.get("urlToImage", ""),
-                        "source": article.get("source", {}).get("name", ""),
-                        "publishedAt": article.get("publishedAt", "")
-                    })
-                
-                # Update cache
-                _news_cache["data"] = articles
-                _news_cache["timestamp"] = now
-                _news_cache["key"] = cache_key
-                
-                return {"success": True, "articles": articles, "cached": False}
-            else:
-                return {"success": False, "error": f"NewsAPI error: {response.status_code}"}
-                
+        if not news_fetcher:
+            news_fetcher = NewsFetcher()
+        if not sentiment_analyzer:
+            sentiment_analyzer = SentimentAnalyzer()
+
+        raw_news = await asyncio.to_thread(news_fetcher.fetch_feeds)
+        analyzed = sentiment_analyzer.analyze_news(raw_news)
+
+        _news_cache["data"] = analyzed
+        _news_cache["timestamp"] = now
+
+        news_list = analyzed.get("news", [])
+        if filter_tag != "all":
+            news_list = [n for n in news_list if n.get("tag") == filter_tag]
+
+        return {"success": True, **analyzed, "news": news_list, "cached": False}
+
     except Exception as e:
-        print(f"News API Error: {e}")
-        return {"success": False, "error": str(e), "articles": []}
+        print(f"[News] Error: {e}")
+        return {
+            "success": False,
+            "overall_sentiment": 50,
+            "overall_label": "Neutral",
+            "news": [],
+            "articles": [],
+            "error": str(e)
+        }
 
 
 # ========== MARKET ANALYSIS API ==========
@@ -2486,240 +2459,4 @@ async def get_market_analysis(
             "analysis": ["Không thể phân tích thị trường lúc này"],
             "recommendation": {"action": "hold", "text": "Tạm thời không có dữ liệu"}
         }
-
-
-# ========== AI BUY SCORE ENDPOINT ==========
-@app.get("/api/buy-score")
-async def get_buy_score(asset: str = Query("silver", description="'gold' or 'silver'")):
-    """
-    Tính AI Buy Score (0-100) cho vàng hoặc bạc.
-    Dựa trên: Spread, AI Prediction, USD, VIX, Price vs 7-day avg, Time factors.
-    """
-    global predictor, gold_predictor, data_fetcher
-
-    try:
-        asset = asset.lower()
-        spread = None
-        ai_prediction_change = None
-        usd_change = None
-        vix_value = None
-        current_price = None
-        avg_7day_price = None
-
-        # Get market data
-        if data_fetcher:
-            try:
-                market = data_fetcher.get_full_market_data()
-                if market:
-                    usd_change = market.get("dxy_change")
-                    vix_value = market.get("vix_close")
-            except Exception as e:
-                print(f"[BuyScore] Market data error: {e}")
-
-        # Get AI prediction change %
-        if asset == "silver" and predictor:
-            try:
-                result = predictor.predict(in_vnd=True)
-                ai_prediction_change = result.get("summary", {}).get("total_change_pct")
-                preds = result.get("predictions", [])
-                if preds:
-                    prices = [p.get("price", 0) for p in preds]
-                    current_price = result.get("last_known", {}).get("price")
-                    avg_7day_price = sum(prices) / len(prices) if prices else None
-            except Exception as e:
-                print(f"[BuyScore] Silver predictor error: {e}")
-        elif asset == "gold" and gold_predictor:
-            try:
-                result = gold_predictor.predict(in_vnd=True)
-                ai_prediction_change = result.get("summary", {}).get("total_change_pct")
-                preds = result.get("predictions", [])
-                if preds:
-                    prices = [p.get("price", 0) for p in preds]
-                    current_price = result.get("last_known", {}).get("price")
-                    avg_7day_price = sum(prices) / len(prices) if prices else None
-            except Exception as e:
-                print(f"[BuyScore] Gold predictor error: {e}")
-
-        score_result = calculate_buy_score(
-            asset_type=asset,
-            spread=spread,
-            ai_prediction_change=ai_prediction_change,
-            usd_change=usd_change,
-            vix_value=vix_value,
-            current_price=current_price,
-            avg_7day_price=avg_7day_price,
-        )
-
-        return {"success": True, **score_result}
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# ========== AI TIME MACHINE ENDPOINT ==========
-class TimeMachineRequest(BaseModel):
-    portfolio_items: list
-    current_gold_price: float = 0
-    current_silver_price: float = 0
-
-
-@app.post("/api/time-machine")
-async def time_machine_predict(request: TimeMachineRequest):
-    """
-    Dự báo giá trị portfolio tương lai (7, 30, 90 ngày).
-    Nhận danh sách portfolio từ frontend và trả về dự báo.
-    """
-    global predictor, gold_predictor
-
-    try:
-        # Get AI predictions for gold and silver
-        gold_predictions = None
-        silver_predictions = None
-
-        if gold_predictor:
-            try:
-                gold_result = gold_predictor.predict(in_vnd=True)
-                gold_predictions = gold_result.get("predictions", [])
-            except Exception as e:
-                print(f"[TimeMachine] Gold prediction error: {e}")
-
-        if predictor:
-            try:
-                silver_result = predictor.predict(in_vnd=True)
-                silver_predictions = silver_result.get("predictions", [])
-            except Exception as e:
-                print(f"[TimeMachine] Silver prediction error: {e}")
-
-        result = predict_portfolio_future(
-            portfolio_items=request.portfolio_items,
-            current_gold_price=request.current_gold_price,
-            current_silver_price=request.current_silver_price,
-            gold_predictions=gold_predictions,
-            silver_predictions=silver_predictions,
-        )
-
-        return {"success": True, **result}
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# ========== NEWS & SENTIMENT ENDPOINT ==========
-_news_cache = {"data": None, "timestamp": None}
-NEWS_CACHE_TTL = 1800  # 30 minutes
-
-@app.get("/api/news")
-async def get_news(tag: str = Query("all", description="'gold', 'silver', or 'all'")):
-    """
-    Lấy tin tức thị trường vàng/bạc kèm phân tích sentiment.
-    Cache 30 phút để tránh gọi RSS quá nhiều.
-    """
-    global news_fetcher, sentiment_analyzer, _news_cache
-
-    try:
-        now = datetime.now()
-
-        # Check cache
-        if _news_cache["data"] and _news_cache["timestamp"]:
-            age = (now - _news_cache["timestamp"]).total_seconds()
-            if age < NEWS_CACHE_TTL:
-                cached = _news_cache["data"]
-                # Filter by tag if needed
-                if tag != "all":
-                    filtered = [n for n in cached.get("news", []) if n.get("tag") == tag]
-                    return {"success": True, **cached, "news": filtered}
-                return {"success": True, **cached}
-
-        # Fetch fresh news
-        if not news_fetcher:
-            news_fetcher = NewsFetcher()
-        if not sentiment_analyzer:
-            sentiment_analyzer = SentimentAnalyzer()
-
-        raw_news = await asyncio.to_thread(news_fetcher.fetch_feeds)
-        analyzed = sentiment_analyzer.analyze_news(raw_news)
-
-        _news_cache["data"] = analyzed
-        _news_cache["timestamp"] = now
-
-        if tag != "all":
-            filtered = [n for n in analyzed.get("news", []) if n.get("tag") == tag]
-            return {"success": True, **analyzed, "news": filtered}
-
-        return {"success": True, **analyzed}
-
-    except Exception as e:
-        print(f"[News] Error: {e}")
-        return {
-            "success": False,
-            "overall_sentiment": 50,
-            "overall_label": "Neutral",
-            "news": [],
-            "error": str(e)
-        }
-
-
-# ========== ACTION RECOMMENDATION ENDPOINT ==========
-@app.get("/api/action-recommendation")
-async def get_action_recommendation(
-    asset: str = Query("silver", description="'gold' or 'silver'"),
-    user_goal: str = Query(None, description="'accumulate' or 'trade'")
-):
-    """
-    Phân tích điều kiện thị trường và đưa ra hướng dẫn giáo dục.
-    KHÔNG phải lời khuyên đầu tư.
-    """
-    global predictor, gold_predictor
-
-    try:
-        asset = asset.lower()
-        buy_score_val = 50
-        prediction_trend = "stable"
-        volatility = "medium"
-
-        # Get buy score
-        try:
-            score_resp = await get_buy_score(asset=asset)
-            buy_score_val = score_resp.get("score", 50)
-        except Exception as e:
-            print(f"[ActionRec] Buy score error: {e}")
-
-        # Get trend from prediction
-        if asset == "silver" and predictor:
-            try:
-                result = predictor.predict(in_vnd=True)
-                change_pct = result.get("summary", {}).get("total_change_pct", 0)
-                if change_pct >= 1:
-                    prediction_trend = "up"
-                elif change_pct <= -1:
-                    prediction_trend = "down"
-                else:
-                    prediction_trend = "stable"
-            except Exception:
-                pass
-        elif asset == "gold" and gold_predictor:
-            try:
-                result = gold_predictor.predict(in_vnd=True)
-                change_pct = result.get("summary", {}).get("total_change_pct", 0)
-                if change_pct >= 1:
-                    prediction_trend = "up"
-                elif change_pct <= -1:
-                    prediction_trend = "down"
-                else:
-                    prediction_trend = "stable"
-            except Exception:
-                pass
-
-        result = generate_action_recommendation(
-            buy_score=buy_score_val,
-            asset_type=asset,
-            prediction_trend=prediction_trend,
-            volatility=volatility,
-            user_goal=user_goal,
-        )
-
-        return {"success": True, **result}
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 

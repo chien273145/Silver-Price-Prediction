@@ -100,10 +100,11 @@ class ReasoningGenerator:
     def _analyze_dxy(self, dxy_data: Dict) -> List[Dict]:
         """Analyze DXY (US Dollar Index) impact."""
         reasons = []
-        
-        change = dxy_data.get('change_pct', 0)
-        current = dxy_data.get('current', 0)
-        
+
+        # Support both 'change_pct'/'current' and 'change'/'value' key formats
+        change = dxy_data.get('change_pct') or dxy_data.get('change', 0)
+        current = dxy_data.get('current') or dxy_data.get('value', 0)
+
         if change <= -0.8:
             reasons.append({
                 "factor": "DXY giảm mạnh",
@@ -132,16 +133,20 @@ class ReasoningGenerator:
                 "detail": f"USD tăng +{change:.1f}% → Bất lợi cho vàng/bạc",
                 "icon": "💵↑"
             })
-        
+
         return reasons
     
     def _analyze_vix(self, vix_data: Dict) -> List[Dict]:
         """Analyze VIX (Fear Index) impact."""
         reasons = []
-        
-        current = vix_data.get('current', 0)
-        change = vix_data.get('change_pct', 0)
-        
+
+        # Support both 'current'/'change_pct' and 'value'/'change' key formats
+        current = vix_data.get('current') or vix_data.get('value', 0)
+        change = vix_data.get('change_pct') or vix_data.get('change', 0)
+
+        if not current:
+            return reasons
+
         if current >= 30:
             reasons.append({
                 "factor": "VIX cao (>30)",
@@ -163,15 +168,16 @@ class ReasoningGenerator:
                 "detail": f"Thị trường lạc quan (VIX={current:.1f}) → Giảm nhu cầu trú ẩn",
                 "icon": "📉"
             })
-        
+
         return reasons
     
     def _analyze_gold(self, gold_data: Dict) -> List[Dict]:
         """Analyze Gold price impact on Silver."""
         reasons = []
-        
-        change = gold_data.get('change_pct', 0)
-        
+
+        # Support both 'change_pct' and 'change' key formats
+        change = gold_data.get('change_pct') or gold_data.get('change', 0)
+
         if change >= 1.5:
             reasons.append({
                 "factor": "Vàng tăng mạnh",
@@ -193,7 +199,7 @@ class ReasoningGenerator:
                 "detail": f"Vàng giảm {change:.1f}% → Áp lực lên bạc",
                 "icon": "🥇↓"
             })
-        
+
         return reasons
     
     def _analyze_live_data(self, market_data: Dict) -> List[Dict]:
