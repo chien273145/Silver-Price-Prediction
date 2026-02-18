@@ -2,27 +2,35 @@ name: Daily Data Update & Retrain
 
 on:
   schedule:
-    # Chạy lúc 01:00 UTC = 08:00 SA Giờ Việt Nam (UTC+7)
-    - cron: '0 1 * * *'
+    # Job 1: Append daily prices lúc 10:00 UTC = 17:00 SA Giờ VN
+    - cron: '0 10 * * 1-5'
+    # Job 2: Retrain models lúc 01:00 UTC = 08:00 SA Giờ VN (hôm sau)
+    - cron: '0 1 * * 2-6'
   workflow_dispatch:
-    # Cho phép chạy thủ công từ GitHub UI
     inputs:
-      retrain:
-        description: 'Retrain models after updating data?'
+      job:
+        description: 'Which job to run?'
         required: false
-        default: 'true'
+        default: 'all'
         type: choice
         options:
-          - 'true'
-          - 'false'
+          - 'all'
+          - 'append_prices'
+          - 'retrain'
 
 jobs:
-  update-and-retrain:
+  # ─────────────────────────────────────────────────────────────────────────
+  # JOB 1: Append daily prices (17:00 SA VN = 10:00 UTC, Mon-Fri)
+  # ─────────────────────────────────────────────────────────────────────────
+  append-daily-prices:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 15
+    if: |
+      github.event_name == 'workflow_dispatch' && (github.event.inputs.job == 'all' || github.event.inputs.job == 'append_prices') ||
+      (github.event_name == 'schedule' && (github.event.schedule == '0 10 * * 1-5'))
 
     permissions:
-      contents: write  # Cần để commit và push dữ liệu mới
+      contents: write
 
     steps:
       - name: Checkout repository
@@ -41,6 +49,76 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install \
+            numpy pandas requests \
+            "beautifulsoup4>=4.12.0" \
+            "lxml>=4.9.0" \
+            "yfinance>=0.2.0"
+
+      - name: Append today's Gold (SJC) price
+        run: |
+          echo "=== Appending Gold SJC price ==="
+          python append_daily_prices.py --gold
+        continue-on-error: true
+
+      - name: Append today's Silver price
+        run: |
+          echo "=== Appending Silver price ==="
+          python append_daily_prices.py --silver
+        continue-on-error: true
+
+      - name: Commit and push new prices
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add dataset/gold_price_sjc_complete.csv || true
+          git add dataset/dataset_enhanced.csv || true
+
+          if git diff --cached --quiet; then
+            echo "No new price data to commit today."
+          else
+            DATE=$(date -u '+%Y-%m-%d')
+            git commit -m "data: Append daily prices ${DATE} [skip ci]
+
+          - Gold SJC: scraped from webgia.com / btmc.vn
+          - Silver: fetched from Yahoo Finance (SI=F)"
+            git push origin main
+            echo "Pushed new price data!"
+          fi
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # JOB 2: Retrain models (08:00 SA VN = 01:00 UTC, Tue-Sat)
+  # ─────────────────────────────────────────────────────────────────────────
+  retrain-models:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    if: |
+      github.event_name == 'workflow_dispatch' && (github.event.inputs.job == 'all' || github.event.inputs.job == 'retrain') ||
+      (github.event_name == 'schedule' && (github.event.schedule == '0 1 * * 2-6'))
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 1
+
+      - name: Pull latest data (from Job 1 commit)
+        run: git pull origin main
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install \
             numpy>=1.21.0 \
             pandas>=1.3.0 \
             scikit-learn>=1.0.0 \
@@ -48,95 +126,76 @@ jobs:
             yfinance>=0.2.0 \
             joblib \
             requests \
-            lunardate
+            lunardate \
+            "beautifulsoup4>=4.12.0" \
+            lxml
 
-      - name: Update Silver dataset
+      - name: Update world datasets (Yahoo Finance)
         run: |
-          echo "=== Updating Silver dataset ==="
-          python update_data.py --silver-only
-        continue-on-error: true
-
-      - name: Update Gold world dataset
-        run: |
-          echo "=== Updating Gold world dataset ==="
-          python update_data.py --gold-only
+          echo "=== Updating world datasets ==="
+          python update_data.py
         continue-on-error: true
 
       - name: Retrain Silver model
-        if: ${{ github.event.inputs.retrain != 'false' }}
         run: |
           echo "=== Retraining Silver model ==="
           python update_data.py --silver-only --retrain
         continue-on-error: true
 
       - name: Retrain Gold model
-        if: ${{ github.event.inputs.retrain != 'false' }}
         run: |
           echo "=== Retraining Gold model ==="
           python update_data.py --gold-only --retrain
         continue-on-error: true
 
-      - name: Check for changes
-        id: check_changes
-        run: |
-          git diff --name-only
-          if git diff --quiet; then
-            echo "changed=false" >> $GITHUB_OUTPUT
-            echo "No changes detected."
-          else
-            echo "changed=true" >> $GITHUB_OUTPUT
-            echo "Changes detected!"
-          fi
-
-      - name: Commit and push updated data
-        if: steps.check_changes.outputs.changed == 'true'
+      - name: Commit and push updated models
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Stage dataset and model files
           git add dataset/dataset_enhanced.csv || true
           git add dataset/gold_geopolitical_dataset.csv || true
           git add models/ridge_enhanced_models.pkl || true
           git add models/vietnam_gold_models.pkl || true
 
-          # Create commit with timestamp
-          TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
-          git commit -m "auto: Daily data update & retrain [${TIMESTAMP}]
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
+            git commit -m "auto: Retrain models [${TIMESTAMP}]
 
-          - Updated Silver dataset from Yahoo Finance
-          - Updated Gold world dataset from Yahoo Finance
+          - Updated world datasets from Yahoo Finance
           - Retrained Silver model (Ridge + XGBoost)
           - Retrained Gold model (Transfer Learning + XGBoost)
           [skip ci]"
+            git push origin main
+            echo "Pushed retrained models!"
+          fi
 
-          git push origin main
-          echo "Pushed changes to GitHub!"
-
-      - name: No changes to commit
-        if: steps.check_changes.outputs.changed == 'false'
-        run: echo "No new data available today. Nothing to commit."
-
-      - name: Summary
+      - name: Print dataset summary
         run: |
-          echo "=== Run Summary ==="
           python -c "
           import pandas as pd
           from datetime import datetime
 
-          # Silver
           try:
               df = pd.read_csv('dataset/dataset_enhanced.csv')
               df['Date'] = pd.to_datetime(df['Date'])
-              print(f'Silver: {len(df)} rows, last date: {df[\"Date\"].max().date()}')
+              print(f'Silver dataset: {len(df)} rows, last={df[\"Date\"].max().date()}')
           except Exception as e:
               print(f'Silver: ERROR - {e}')
 
-          # Gold
+          try:
+              df = pd.read_csv('dataset/gold_price_sjc_complete.csv')
+              df['date'] = pd.to_datetime(df['date'])
+              print(f'Gold SJC dataset: {len(df)} rows, last={df[\"date\"].max().date()}')
+          except Exception as e:
+              print(f'Gold SJC: ERROR - {e}')
+
           try:
               df = pd.read_csv('dataset/gold_geopolitical_dataset.csv')
               df['date'] = pd.to_datetime(df['date'])
-              print(f'Gold:   {len(df)} rows, last date: {df[\"date\"].max().date()}')
+              print(f'Gold World dataset: {len(df)} rows, last={df[\"date\"].max().date()}')
           except Exception as e:
-              print(f'Gold: ERROR - {e}')
+              print(f'Gold World: ERROR - {e}')
           "

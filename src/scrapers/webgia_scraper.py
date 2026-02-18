@@ -65,21 +65,43 @@ class WebGiaScraper(BaseScraper):
                     
                 brand = brand_node.get_text(strip=True)
                 
-                # Prices are in tds with 'nb' attribute
-                price_cells = row.select('td[nb]')
+                # Prices can be in tds with 'nb' attribute OR plain text
+                price_cells = row.select('td.text-right')
                 if len(price_cells) >= 2:
-                    buy_node = price_cells[0]
-                    sell_node = price_cells[1]
+                    # 1. Try 'nb' attribute (obfuscated)
+                    buy_code = price_cells[0].get('nb')
+                    sell_code = price_cells[1].get('nb')
                     
-                    buy_code = buy_node.get('nb')
-                    sell_code = sell_node.get('nb')
+                    buy_price = 0.0
+                    sell_price = 0.0
                     
-                    buy_price = self.decode_price(buy_code)
-                    sell_price = self.decode_price(sell_code)
+                    if buy_code:
+                        buy_price = self.decode_price(buy_code)
+                    else:
+                        # 2. Try plain text
+                        try:
+                            t = price_cells[0].get_text(strip=True).replace('.', '').replace(',', '')
+                            if t and re.match(r'^\d+$', t):
+                                buy_price = float(t)
+                        except: pass
+
+                    if sell_code:
+                        sell_price = self.decode_price(sell_code)
+                    else:
+                        try:
+                            t = price_cells[1].get_text(strip=True).replace('.', '').replace(',', '')
+                            if t and re.match(r'^\d+$', t):
+                                sell_price = float(t)
+                        except: pass
                 else:
-                    # sometimes prices are plain text if not obfuscated (rare on webgia now)
-                    # fallback logic could go here
                     continue
+
+                # UNIT CORRECTION: Webgia uses "đồng / chỉ" (1/10 lượng)
+                # If price is < 50,000,000, it means it's per CHI, so multiply by 10
+                if 0 < buy_price < 50_000_000:
+                    buy_price *= 10
+                if 0 < sell_price < 50_000_000:
+                    sell_price *= 10
 
                 if buy_price > 0 and sell_price > 0:
                     items.append(GoldPriceItem(
