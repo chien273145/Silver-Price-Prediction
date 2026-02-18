@@ -347,7 +347,7 @@ async function loadTimeMachine() {
 
     try {
         // Get portfolio items
-        const items = portfolioManager.transactions.map(tx => ({
+        const portfolioItems = portfolioManager.transactions.map(tx => ({
             id: tx.id,
             asset_type: tx.asset,
             brand: tx.brand,
@@ -356,21 +356,35 @@ async function loadTimeMachine() {
             buy_date: tx.date,
         }));
 
-        if (items.length === 0) {
+        if (portfolioItems.length === 0) {
             container.innerHTML = '<div class="tm-loading">Thêm tài sản vào portfolio để xem dự báo tương lai</div>';
             return;
+        }
+
+        // Get current prices from local prices if available
+        let currentGoldPrice = 0;
+        let currentSilverPrice = 0;
+        if (window.latestLocalPrices && window.latestLocalPrices.items) {
+            const goldItem = window.latestLocalPrices.items.find(i => !i.product_type.toUpperCase().includes('BẠC'));
+            const silverItem = window.latestLocalPrices.items.find(i => i.product_type.toUpperCase().includes('BẠC'));
+            if (goldItem) currentGoldPrice = goldItem.sell_price;
+            if (silverItem) currentSilverPrice = silverItem.sell_price;
         }
 
         const response = await fetch(`${window.location.origin}/api/time-machine`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ items })
+            body: JSON.stringify({
+                portfolio_items: portfolioItems,
+                current_gold_price: currentGoldPrice,
+                current_silver_price: currentSilverPrice
+            })
         });
 
         const data = await response.json();
 
-        if (data.success && data.data) {
-            displayTimeMachine(data.data);
+        if (data.success) {
+            displayTimeMachine(data);
         } else {
             container.innerHTML = '<div class="tm-loading">Không thể tải dự báo</div>';
         }

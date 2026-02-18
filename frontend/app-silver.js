@@ -1325,8 +1325,8 @@ async function loadBuyScore() {
         const response = await fetch(`${API_BASE}/api/buy-score?asset=silver`);
         const data = await response.json();
 
-        if (data.success && data.data) {
-            displayBuyScore(data.data);
+        if (data.success) {
+            displayBuyScore(data);
         }
     } catch (error) {
         console.error('Error loading buy score:', error);
@@ -1396,4 +1396,57 @@ function toggleBuyScoreFactors() {
 setTimeout(loadBuyScore, 2000);
 setInterval(loadBuyScore, 300000);
 
-console.log('🥈 app-silver.js v2.2.0 Loaded');
+// ========== MARKET NEWS ==========
+async function loadNews() {
+    const newsListEl = document.getElementById('newsList');
+    if (!newsListEl) return;
+
+    newsListEl.innerHTML = '<div class="news-loading">Đang tải tin tức...</div>';
+
+    try {
+        const response = await fetch(`${API_BASE}/api/news?tag=all`);
+        const data = await response.json();
+
+        if (!data.success || !data.news || data.news.length === 0) {
+            newsListEl.innerHTML = '<div class="news-loading">Không có tin tức lúc này.</div>';
+            return;
+        }
+
+        const sentimentColor = (score) => {
+            if (score >= 60) return '#22c55e';
+            if (score <= 40) return '#ef4444';
+            return '#f59e0b';
+        };
+
+        const html = data.news.slice(0, 8).map(item => `
+            <div class="news-item">
+                <div class="news-header">
+                    <span class="news-source">${item.source || ''}</span>
+                    <span class="news-sentiment" style="color:${sentimentColor(item.sentiment_score || 50)};">
+                        ${item.sentiment_label || 'Neutral'}
+                    </span>
+                </div>
+                <a class="news-title" href="${item.link || '#'}" target="_blank" rel="noopener">
+                    ${item.title || ''}
+                </a>
+                <div class="news-meta">
+                    <span>${item.date ? new Date(item.date).toLocaleDateString('vi-VN') : ''}</span>
+                </div>
+            </div>
+        `).join('');
+
+        newsListEl.innerHTML = html;
+    } catch (error) {
+        console.error('Error loading news:', error);
+        newsListEl.innerHTML = '<div class="news-loading">Không thể tải tin tức.</div>';
+    }
+}
+
+// Attach refresh button
+const refreshNewsBtn = document.getElementById('refreshNewsBtn');
+if (refreshNewsBtn) refreshNewsBtn.addEventListener('click', loadNews);
+
+setTimeout(loadNews, 3000);
+setInterval(loadNews, 1800000); // Refresh every 30 min
+
+console.log('🥈 app-silver.js v2.3.0 Loaded');

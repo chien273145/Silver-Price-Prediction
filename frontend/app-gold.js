@@ -1105,13 +1105,13 @@ async function loadNews() {
     if (!elements.newsList) return;
 
     try {
-        const response = await fetch(`${API_BASE}/api/news?asset=gold`);
+        const response = await fetch(`${API_BASE}/api/news?tag=all`);
         const data = await response.json();
 
-        if (data.success && data.articles && data.articles.length > 0) {
-            displayNews(data.articles);
+        if (data.success && data.news && data.news.length > 0) {
+            displayNews(data.news);
         } else {
-            elements.newsList.innerHTML = '<div class="news-error">Không thể tải tin tức</div>';
+            elements.newsList.innerHTML = '<div class="news-error">Không có tin tức lúc này</div>';
         }
     } catch (error) {
         console.error('Error loading news:', error);
@@ -1454,8 +1454,8 @@ async function loadBuyScore() {
         const response = await fetch(`${API_BASE}/api/buy-score?asset=gold`);
         const data = await response.json();
 
-        if (data.success && data.data) {
-            displayBuyScore(data.data);
+        if (data.success) {
+            displayBuyScore(data);
         }
     } catch (error) {
         console.error('Error loading buy score:', error);
@@ -1534,12 +1534,12 @@ function toggleBuyScoreFactors() {
 
 setTimeout(() => {
     loadBuyScore();
-    fetchNews();
+    loadNews();
 }, 2000);
 
 setInterval(() => {
     loadBuyScore();
-    fetchNews();
+    loadNews();
 }, 300000);
 
 console.log('🥇 app-gold.js v2.3.0 - Vietnam SJC Gold');

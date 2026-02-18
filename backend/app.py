@@ -6,6 +6,7 @@ Uses Ridge Regression model (primary) or LSTM (fallback).
 
 import os
 import sys
+import asyncio
 import numpy as np
 from datetime import datetime
 from typing import Optional
@@ -322,6 +323,15 @@ async def root():
             "/docs": "API Documentation"
         }
     }
+
+@app.get("/ads.txt")
+async def ads_txt():
+    """Serve ads.txt for Google AdSense verification."""
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'frontend', 'ads.txt')
+    if os.path.exists(path):
+        return FileResponse(path)
+    raise HTTPException(status_code=404, detail="ads.txt not found")
+
 
 # Blog Routes
 @app.get("/blog")
@@ -2476,3 +2486,240 @@ async def get_market_analysis(
             "analysis": ["Không thể phân tích thị trường lúc này"],
             "recommendation": {"action": "hold", "text": "Tạm thời không có dữ liệu"}
         }
+
+
+# ========== AI BUY SCORE ENDPOINT ==========
+@app.get("/api/buy-score")
+async def get_buy_score(asset: str = Query("silver", description="'gold' or 'silver'")):
+    """
+    Tính AI Buy Score (0-100) cho vàng hoặc bạc.
+    Dựa trên: Spread, AI Prediction, USD, VIX, Price vs 7-day avg, Time factors.
+    """
+    global predictor, gold_predictor, data_fetcher
+
+    try:
+        asset = asset.lower()
+        spread = None
+        ai_prediction_change = None
+        usd_change = None
+        vix_value = None
+        current_price = None
+        avg_7day_price = None
+
+        # Get market data
+        if data_fetcher:
+            try:
+                market = data_fetcher.get_full_market_data()
+                if market:
+                    usd_change = market.get("dxy_change")
+                    vix_value = market.get("vix_close")
+            except Exception as e:
+                print(f"[BuyScore] Market data error: {e}")
+
+        # Get AI prediction change %
+        if asset == "silver" and predictor:
+            try:
+                result = predictor.predict(in_vnd=True)
+                ai_prediction_change = result.get("summary", {}).get("total_change_pct")
+                preds = result.get("predictions", [])
+                if preds:
+                    prices = [p.get("price", 0) for p in preds]
+                    current_price = result.get("last_known", {}).get("price")
+                    avg_7day_price = sum(prices) / len(prices) if prices else None
+            except Exception as e:
+                print(f"[BuyScore] Silver predictor error: {e}")
+        elif asset == "gold" and gold_predictor:
+            try:
+                result = gold_predictor.predict(in_vnd=True)
+                ai_prediction_change = result.get("summary", {}).get("total_change_pct")
+                preds = result.get("predictions", [])
+                if preds:
+                    prices = [p.get("price", 0) for p in preds]
+                    current_price = result.get("last_known", {}).get("price")
+                    avg_7day_price = sum(prices) / len(prices) if prices else None
+            except Exception as e:
+                print(f"[BuyScore] Gold predictor error: {e}")
+
+        score_result = calculate_buy_score(
+            asset_type=asset,
+            spread=spread,
+            ai_prediction_change=ai_prediction_change,
+            usd_change=usd_change,
+            vix_value=vix_value,
+            current_price=current_price,
+            avg_7day_price=avg_7day_price,
+        )
+
+        return {"success": True, **score_result}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ========== AI TIME MACHINE ENDPOINT ==========
+class TimeMachineRequest(BaseModel):
+    portfolio_items: list
+    current_gold_price: float = 0
+    current_silver_price: float = 0
+
+
+@app.post("/api/time-machine")
+async def time_machine_predict(request: TimeMachineRequest):
+    """
+    Dự báo giá trị portfolio tương lai (7, 30, 90 ngày).
+    Nhận danh sách portfolio từ frontend và trả về dự báo.
+    """
+    global predictor, gold_predictor
+
+    try:
+        # Get AI predictions for gold and silver
+        gold_predictions = None
+        silver_predictions = None
+
+        if gold_predictor:
+            try:
+                gold_result = gold_predictor.predict(in_vnd=True)
+                gold_predictions = gold_result.get("predictions", [])
+            except Exception as e:
+                print(f"[TimeMachine] Gold prediction error: {e}")
+
+        if predictor:
+            try:
+                silver_result = predictor.predict(in_vnd=True)
+                silver_predictions = silver_result.get("predictions", [])
+            except Exception as e:
+                print(f"[TimeMachine] Silver prediction error: {e}")
+
+        result = predict_portfolio_future(
+            portfolio_items=request.portfolio_items,
+            current_gold_price=request.current_gold_price,
+            current_silver_price=request.current_silver_price,
+            gold_predictions=gold_predictions,
+            silver_predictions=silver_predictions,
+        )
+
+        return {"success": True, **result}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ========== NEWS & SENTIMENT ENDPOINT ==========
+_news_cache = {"data": None, "timestamp": None}
+NEWS_CACHE_TTL = 1800  # 30 minutes
+
+@app.get("/api/news")
+async def get_news(tag: str = Query("all", description="'gold', 'silver', or 'all'")):
+    """
+    Lấy tin tức thị trường vàng/bạc kèm phân tích sentiment.
+    Cache 30 phút để tránh gọi RSS quá nhiều.
+    """
+    global news_fetcher, sentiment_analyzer, _news_cache
+
+    try:
+        now = datetime.now()
+
+        # Check cache
+        if _news_cache["data"] and _news_cache["timestamp"]:
+            age = (now - _news_cache["timestamp"]).total_seconds()
+            if age < NEWS_CACHE_TTL:
+                cached = _news_cache["data"]
+                # Filter by tag if needed
+                if tag != "all":
+                    filtered = [n for n in cached.get("news", []) if n.get("tag") == tag]
+                    return {"success": True, **cached, "news": filtered}
+                return {"success": True, **cached}
+
+        # Fetch fresh news
+        if not news_fetcher:
+            news_fetcher = NewsFetcher()
+        if not sentiment_analyzer:
+            sentiment_analyzer = SentimentAnalyzer()
+
+        raw_news = await asyncio.to_thread(news_fetcher.fetch_feeds)
+        analyzed = sentiment_analyzer.analyze_news(raw_news)
+
+        _news_cache["data"] = analyzed
+        _news_cache["timestamp"] = now
+
+        if tag != "all":
+            filtered = [n for n in analyzed.get("news", []) if n.get("tag") == tag]
+            return {"success": True, **analyzed, "news": filtered}
+
+        return {"success": True, **analyzed}
+
+    except Exception as e:
+        print(f"[News] Error: {e}")
+        return {
+            "success": False,
+            "overall_sentiment": 50,
+            "overall_label": "Neutral",
+            "news": [],
+            "error": str(e)
+        }
+
+
+# ========== ACTION RECOMMENDATION ENDPOINT ==========
+@app.get("/api/action-recommendation")
+async def get_action_recommendation(
+    asset: str = Query("silver", description="'gold' or 'silver'"),
+    user_goal: str = Query(None, description="'accumulate' or 'trade'")
+):
+    """
+    Phân tích điều kiện thị trường và đưa ra hướng dẫn giáo dục.
+    KHÔNG phải lời khuyên đầu tư.
+    """
+    global predictor, gold_predictor
+
+    try:
+        asset = asset.lower()
+        buy_score_val = 50
+        prediction_trend = "stable"
+        volatility = "medium"
+
+        # Get buy score
+        try:
+            score_resp = await get_buy_score(asset=asset)
+            buy_score_val = score_resp.get("score", 50)
+        except Exception as e:
+            print(f"[ActionRec] Buy score error: {e}")
+
+        # Get trend from prediction
+        if asset == "silver" and predictor:
+            try:
+                result = predictor.predict(in_vnd=True)
+                change_pct = result.get("summary", {}).get("total_change_pct", 0)
+                if change_pct >= 1:
+                    prediction_trend = "up"
+                elif change_pct <= -1:
+                    prediction_trend = "down"
+                else:
+                    prediction_trend = "stable"
+            except Exception:
+                pass
+        elif asset == "gold" and gold_predictor:
+            try:
+                result = gold_predictor.predict(in_vnd=True)
+                change_pct = result.get("summary", {}).get("total_change_pct", 0)
+                if change_pct >= 1:
+                    prediction_trend = "up"
+                elif change_pct <= -1:
+                    prediction_trend = "down"
+                else:
+                    prediction_trend = "stable"
+            except Exception:
+                pass
+
+        result = generate_action_recommendation(
+            buy_score=buy_score_val,
+            asset_type=asset,
+            prediction_trend=prediction_trend,
+            volatility=volatility,
+            user_goal=user_goal,
+        )
+
+        return {"success": True, **result}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
